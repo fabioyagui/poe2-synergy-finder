@@ -51,6 +51,8 @@ class PortabilityV192Tests(unittest.TestCase):
                 "bridge_path": "C:/fake/bridge",
             }
             with mock.patch.object(pob_engine, "load_config", return_value=cfg), \
+                 mock.patch.object(pob_engine, "LOCAL_POB_CHECKOUT", Path(td) / "missing-local"), \
+                 mock.patch.object(pob_engine, "USER_POB_CHECKOUT", Path(td) / "missing-user"), \
                  mock.patch.object(pob_engine, "setup_status", side_effect=lambda value: value):
                 detected = pob_engine.auto_detect(save=False)
             self.assertEqual(Path(detected["pob_src_path"]), program)

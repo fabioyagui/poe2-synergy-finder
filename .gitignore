@@ -1,9 +1,11 @@
 __pycache__/
 *.pyc
 .venv/
-data/database/
-data/raw/snapshots/
-data/raw/repoe/*.json
 
-data/ggg/oauth-token.json
-data/ggg/config.json
+# Dados locais do usuário: builds importadas, banco, caches, logs e tokens.
+data/
+
+# Bridge e PoB baixados de terceiros (GPL), nunca redistribuídos.
+engine/
+
+*.exe
