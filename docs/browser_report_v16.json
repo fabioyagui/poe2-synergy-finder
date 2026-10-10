@@ -1,0 +1,28 @@
+{
+  "checks": [
+    "App starts; current build is visible",
+    "Tree context loaded through actual local HTTP API",
+    "Default filter: nearby nodes",
+    "Addition plan loads",
+    "One point cost shown",
+    "Numeric result from test engine shown",
+    "A/A control is displayed",
+    "Restoration status displayed",
+    "Stable metrics expand into real rows",
+    "JSON report serialization contains the exact calculation result",
+    "Dependent removal cost shown",
+    "Dependencies listed before comparison",
+    "Isolated disconnected case is a hypothesis, not valid path",
+    "Removal comparison runs without changing original",
+    "Untrusted node text is rendered literally",
+    "No injected script nodes",
+    "Pagination operates",
+    "Reload fetches fresh context",
+    "Engine error shown; buttons re-enabled",
+    "Recovery after a failed preview",
+    "New module fits a 760px viewport without horizontal overflow",
+    "No JavaScript runtime exceptions"
+  ],
+  "count": 22,
+  "mode": "Offline Chromium harness + real local HTTP API via bounded binding + synthetic engine; not live PoB"
+}

@@ -1,0 +1,32 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/generated/interface/models.py", line 32317, in hydrate_crdt_from_proto
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+[web] "POST /api/tree-sim/context HTTP/1.1" 200 -
+[web] "POST /api/tree-sim/preview HTTP/1.1" 200 -
+[web] "POST /api/tree-sim/compare HTTP/1.1" 200 -
+[web] "POST /api/tree-sim/context HTTP/1.1" 403 -
+[web] "GET /tree-sim.js HTTP/1.1" 200 -
+[web] "GET /tree-sim.css HTTP/1.1" 200 -
+[web] "POST /api/tree-sim/preview HTTP/1.1" 400 -
+[web] "POST /api/tree-sim/preview HTTP/1.1" 409 -
+[web] "GET /workbench.js HTTP/1.1" 200 -
+[web] "GET /workbench.css HTTP/1.1" 200 -
+[web] "POST /api/workbench/calcs HTTP/1.1" 400 -
+[web] "POST /api/workbench/calcs HTTP/1.1" 200 -
+[web] "POST /api/workbench/visual HTTP/1.1" 403 -
+[web] "POST /api/workbench/calcs HTTP/1.1" 403 -
+[web] "POST /api/workbench/suggestions HTTP/1.1" 403 -
+[web] "POST /api/workbench/calcs HTTP/1.1" 409 -
+[web] "POST /api/workbench/suggestions HTTP/1.1" 200 -
+[web] "POST /api/workbench/visual HTTP/1.1" 200 -
+----------------------------------------------------------------------
+Ran 315 tests in 2.567s
+
+OK

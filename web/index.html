@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PoE2 · Synergy Finder</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script><link rel="stylesheet" href="/tree-sim.css"><script src="/tree-sim.js" defer></script><script src="/workbench.js" defer></script>
+<link rel="stylesheet" href="/workbench.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><div class="brandmark" aria-hidden="true">◇</div><div><strong>POE2 <span>SYNERGY FINDER</span></strong><small>DADOS + POB · <span id="appVersion">0.19.3</span></small></div></div>
+  <div class="top-actions"><span class="connection" id="dataLabel">Lendo base local…</span><button id="openBuildLibrary" class="secondary">Builds</button><button id="openCurrentBuild" class="secondary build-button" hidden>Build atual</button><button id="openPob" class="secondary">Importar PoB</button><button id="openCodex" class="secondary">Codex MCP</button><button id="openData" class="secondary">Base de dados</button></div>
+</header>
+<div id="toast" role="status" hidden></div>
+<section id="jobPanel" class="job-panel" hidden aria-live="polite">
+  <div><strong id="jobStage">Preparando…</strong><span id="jobElapsed"></span></div><p id="jobDetail"></p>
+  <progress id="jobProgress"></progress><div class="job-bottom"><span id="jobBytes">Aguardando</span><button id="cancelJob" class="text-button">Cancelar operação</button></div>
+</section>
+<section id="welcome" class="welcome" hidden>
+  <span class="eyebrow">DE VOLTA AOS DADOS</span><h1>As interações começam<br>com uma base completa.</h1>
+  <p>Use os JSONs que você já baixou ou importe o catálogo do RePoE. Nenhum perfil de build ou cadastro de supports é necessário.</p>
+  <div class="welcome-actions"><button id="reuseData" class="primary">Usar dados da versão anterior</button><button id="downloadData" class="secondary">Baixar base do RePoE</button></div>
+  <div class="welcome-sources"><span>skill_gems</span><span>skills</span><span>active_skill_types</span><span>passive tree + ascendancies</span><span>Tags + textos + stats + regras</span></div>
+</section>
+
+<section id="buildLibraryWorkspace" class="build-library-workspace" hidden>
+  <div class="build-page-head">
+    <div><span class="eyebrow">BUILD EXPLORER</span><h1>Biblioteca de builds</h1><p class="muted">Pesquise builds já capturadas e carregue uma diretamente no Finder, sem abrir o PoB gráfico.</p></div>
+    <div class="build-page-actions"><button id="libraryBack" class="secondary">← Voltar ao Finder</button><button id="libraryAdd" class="primary">Adicionar build</button></div>
+  </div>
+  <div class="library-tabs" role="tablist">
+    <button data-library-tab="local" class="active">Biblioteca</button>
+    <button data-library-tab="ggg">Minha conta GGG</button>
+    <button data-library-tab="ladder">Ladder</button>
+  </div>
+  <div id="libraryLocalPanel">
+    <div id="buildSourceStatus" class="build-source-status"></div>
+    <div class="build-library-search">
+      <input id="libraryQuery" type="search" placeholder="Skill, support, item, personagem, ascendência…">
+      <select id="libraryClass"><option value="">Todas as classes</option></select>
+      <select id="libraryAsc"><option value="">Todas as ascendências</option></select>
+      <select id="librarySkill"><option value="">Todas as main skills</option></select>
+    </div>
+    <div class="library-heading"><strong id="libraryCount">0 builds</strong><span class="muted">PoB/XML e snapshots oficiais GGG na mesma biblioteca</span></div>
+    <div id="buildLibraryCards" class="build-library-cards"></div>
+  </div>
+  <div id="libraryGggPanel" hidden></div>
+  <div id="libraryLadderPanel" hidden></div>
+</section>
+<section id="buildWorkspace" class="build-workspace" hidden>
+  <div class="build-page-head">
+    <div>
+      <span class="eyebrow">BUILD ATUAL</span>
+      <h1 id="buildTitle">Build atual</h1>
+      <p id="buildSubtitle" class="muted"></p>
+    </div>
+    <div class="build-page-actions">
+      <button id="backToFinder" class="secondary">← Voltar ao Finder</button>
+      <button id="changePob" class="primary">Trocar / atualizar PoB</button>
+    </div>
+  </div>
+
+  <div id="buildHero"></div>
+
+  <div class="build-tabs" role="tablist">
+    <button data-build-tab="overview" class="active">Visão geral</button>
+    <button data-build-tab="skills">Skills & links</button>
+    <button data-build-tab="gear">Equipamentos & Market</button>
+    <button data-build-tab="tree-map">Árvore visual</button>
+    <button data-build-tab="calcs">Cálculos</button>
+    <button data-build-tab="tree">Árvore & pontos</button>
+    <button data-build-tab="tree-sim">Simular pontos</button>
+    <button data-build-tab="virtual">Virtual Linker</button>
+    <button data-build-tab="engine">Motor PoB</button>
+  </div>
+  <div id="buildContent" class="build-content"></div>
+</section>
+
+<div class="workspace" id="workspace" hidden>
+  <aside class="sidebar">
+    <div class="step-label">01 <span>SKILL PARA EXPLORAR</span></div>
+    <label class="sr-only" for="skillSearch">Buscar skill</label><input id="skillSearch" type="search" placeholder="Flameblast, Oil Grenade…" autocomplete="off">
+    <div class="sidebar-meta"><span id="skillCount"></span><button class="text-button" id="clearSkill">Sem skill fixa</button></div>
+    <div id="skillResults" class="skill-results"></div>
+    <div class="sidebar-footer"><span class="eyebrow">ORIGEM DOS DADOS</span><p id="sourceSummary"></p><small>Todos os registros reconhecidos dos arquivos importados, sem seleção manual de gems.</small></div>
+  </aside>
+  <main>
+    <section class="anchor" id="anchor"></section>
+    <section class="exploration">
+      <div class="mode-switch" role="group" aria-label="Modo de exploração"><button id="viewCatalog" class="active">Catálogo completo</button><button id="viewInteractions">Interações entre categorias</button></div><div class="section-heading"><div class="step-label">02 <span>DADOS PARA INVESTIGAR</span></div><div class="view-switch" role="group" aria-label="Alcance da busca"><button id="scopeSupports" class="active">Supports</button><button id="scopePassives">Passivas</button><button id="scopeAscendancies">Ascendências</button><button id="scopeAll">Toda a base</button></div></div>
+      <div class="search-row"><label class="sr-only" for="query">Buscar em nomes, tags, textos e stats</label><input id="query" type="search" placeholder="Busque uma interação: Ignite, Power Charge, area…" autocomplete="off"><button id="searchBtn" class="primary">Explorar</button></div>
+      <div class="filters">
+        <div class="colors" role="group" aria-label="Filtrar por atributo"><button data-color="" class="active">Todos</button><button data-color="r" class="r"><i></i>STR</button><button data-color="g" class="g"><i></i>DEX</button><button data-color="b" class="b"><i></i>INT</button><button data-color="w" class="w"><i></i>Neutro</button></div>
+        <label><span class="sr-only">Relação nos dados</span><select id="relation"><option value="">Todas as relações</option><option value="produces">Produz / habilita</option><option value="modifies">Modifica / amplifica</option><option value="requires">Exige uma condição</option><option value="consumes">Consome</option><option value="prevents">Impede aplicação / consumo</option><option value="mentions">Menciona no texto</option><option value="tags">Tag</option></select></label>
+        <label><span class="sr-only">Filtro de compatibilidade</span><select id="compatMode"><option value="match">Compatíveis por tipos</option><option value="all">Incluir incompatíveis / não verificados</option><option value="incompatible">Somente incompatíveis</option><option value="unknown">Somente não verificados</option></select></label>
+        <label><span class="sr-only">Ascendência</span><select id="ascendancyFilter"><option value="">Todas as ascendências</option></select></label>
+        <label><span class="sr-only">Tipo de nó ou gem</span><select id="kindFilter"><option value="">Todos os tipos</option><option value="SKILL">Skills</option><option value="SUPPORT">Supports</option><option value="PASSIVE">Passivas pequenas</option><option value="NOTABLE">Notables</option><option value="KEYSTONE">Keystones</option><option value="ASCENDANCY_NODE">Nós de ascendência</option><option value="ASCENDANCY">Ascendências — definição</option></select></label>
+      </div>
+      <div id="sourceWarnings" class="inspector-notice" hidden></div>
+      <div id="interactionPanel" hidden></div>
+      <div id="tagFilter" class="active-filter" hidden><span></span><button class="text-button">Remover filtro de tag ×</button></div>
+      <div class="result-heading"><strong id="resultCount"></strong><span>Ordem alfabética · sem nota de poder</span></div>
+      <div class="explanation">Compatibilidade diz se os <b>tipos</b> combinam. Tags, descrições e stats mostram <b>onde investigar</b>. Uma ligação pode ajudar, exigir outra mecânica ou atrapalhar — não é uma recomendação automática.</div>
+      <div id="cards" class="cards" aria-live="polite"></div>
+      <div class="pagination"><button id="previous" class="secondary">← Anterior</button><span id="pageInfo"></span><button id="next" class="secondary">Próxima →</button></div>
+    </section>
+  </main>
+</div>
+<dialog id="dataDialog">
+  <div class="dialog-head"><div><span class="eyebrow">FONTE E COBERTURA</span><h2>Base de dados</h2></div><button class="close" data-close="dataDialog" aria-label="Fechar">×</button></div>
+  <div class="dialog-body"><div id="audit"></div>
+    <h3>Reutilizar os arquivos anteriores</h3><p class="muted">Apenas os dados são lidos. O programa não apaga nem altera a pasta anterior.</p>
+    <div id="candidates">Procurando bases nas pastas de projetos próximas…</div>
+    <label for="folder">Ou informe a pasta do projeto anterior / data\raw\repoe</label>
+    <div class="path-row"><input id="folder" placeholder="C:\Users\…\poe2-synergy-finder"><button id="importFolder" class="secondary">Importar JSONs</button></div>
+    <div class="divider"></div><h3>Atualizar pela internet</h3><p class="muted">Baixa gems, skills, tipos, árvore Default, ascendências e dois arquivos de tradução de stats. A importação completa é atômica.</p><button id="refreshOnline" class="primary">Baixar base completa</button><button id="downloadTree" class="secondary">Baixar só árvore + ascendências</button>
+    <div class="next-sources"><strong>Também é possível importar a árvore de uma pasta local</strong><p>Use a pasta com <code>Default.json</code> e <code>ascendancies.json</code>, ou sua estrutura original de subpastas. Traduções são opcionais no modo local.</p><button id="importTreeFolder" class="secondary">Importar árvore da pasta acima</button><p><small>Uniques ainda não importados. Esta versão consulta nós e suas regras; não é um planejador visual da árvore nem calcula custo de caminhos.</small></p></div>
+  </div>
+</dialog>
+<dialog id="pobDialog" class="detail-dialog">
+  <div class="dialog-head"><div><span class="eyebrow">PATH OF BUILDING 2</span><h2>Build real do PoB</h2></div><button class="close" data-close="pobDialog" aria-label="Fechar">×</button></div>
+  <div class="dialog-body">
+    <p class="muted">Importe um link pobb.in, XML, arquivo local ou código de exportação. O baseline mostra os PlayerStats que já vieram calculados no export. Para recalcular variantes, conectaremos o motor PoB headless.</p>
+    <label for="pobSource">Build PoB</label>
+    <div class="path-row"><input id="pobSource" placeholder="https://pobb.in/4vhsSH26lOUZ"><button id="importPob" class="primary">Carregar build</button></div>
+    <div id="pobSummary" class="pob-summary"><p class="muted">Nenhuma build carregada nesta sessão.</p></div>
+    <div class="divider"></div>
+    <p class="muted">Depois de importar, abra <strong>Build atual → Motor PoB</strong> para configurar o recálculo headless.</p>
+  </div>
+</dialog>
+<dialog id="detailDialog" class="detail-dialog">
+  <div id="detailHeader" class="dialog-head"></div><div id="detailTabs" class="detail-tabs"></div><div id="detailBody" class="dialog-body"></div>
+</dialog>
+<footer>Local no seu computador · Sem serviço de IA ou conta obrigatória · Este produto não é afiliado nem endossado pela Grinding Gear Games. · Dados do jogo pertencem à GGG; exportação RePoE.</footer>
+
+<dialog id="codexDialog" class="detail-dialog">
+  <div class="dialog-head"><div><span class="eyebrow">LOCAL MCP · SEM API KEY NO FINDER</span><h2>Codex + Synergy Finder</h2></div><button class="close" data-close="codexDialog" aria-label="Fechar">×</button></div>
+  <div class="dialog-body">
+    <p>O Codex pode consultar sua build, Calcs, árvore, sugestões e RePoE através de ferramentas MCP compactas.</p>
+    <div class="build-ok"><strong>Fluxo econômico</strong><br><span class="muted">PoB/RePoE trabalham localmente; o Codex recebe apenas resumos e candidatos pequenos.</span></div>
+    <h3>Configuração única</h3>
+    <ol class="codex-steps">
+      <li>Feche/reabra o Codex depois da instalação.</li>
+      <li>Execute <code>INSTALAR_CODEX_MCP.bat</code> nesta pasta.</li>
+      <li>Mantenha este Finder aberto.</li>
+      <li>No Codex, execute <code>/mcp</code> e confira os servidores <code>synergy-*</code> como <code>connected (1 tool)</code>.</li>
+    </ol>
+    <h3>Teste sem usar modelo</h3>
+    <p>Execute <code>TESTAR_CODEX_MCP.bat</code>. Ele só consulta o Finder local.</p>
+    <h3>Exemplo</h3>
+    <pre class="raw-text">Use o Synergy Finder para analisar minha build atual.
+Procure melhorias de Life em até 3 pontos.
+Teste no máximo 6 caminhos e explique o trade-off com DPS.</pre>
+    <p class="muted">O MCP não envia a árvore inteira nem o banco RePoE inteiro ao modelo. Veja CODEX_MCP.md para detalhes.</p>
+  </div>
+</dialog>
+
+</body></html>

@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+data/database/
+data/raw/snapshots/
+data/raw/repoe/*.json
+
+data/ggg/oauth-token.json
+data/ggg/config.json

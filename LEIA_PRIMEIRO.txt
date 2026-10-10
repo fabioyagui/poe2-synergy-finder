@@ -1,0 +1,38 @@
+POE2 SYNERGY FINDER v0.19.2 — EQUIPMENT, MARKET, GEMS, ARVORE E CALCULOS
+
+ATUALIZAR SEM BAIXAR O POB NOVAMENTE
+1. Pare o Motor PoB e feche o Finder.
+2. Extraia este ZIP separadamente.
+3. Execute ATUALIZAR_INSTALACAO.bat da pasta NOVA.
+4. Selecione sua instalacao atual, a pasta que contem app.py.
+5. Abra START_POE2_SYNERGY_FINDER.bat da pasta ATUALIZADA.
+
+data/ e engine/ nao sao substituidos. O nome da pasta pode ficar antigo;
+o cabecalho deve mostrar v0.19.2.
+
+NOVO NA BUILD ATUAL
+- Equipment & Market com loadout visual inspirado no jogo.
+- Clique em uma gear para ver tooltip e modifiers detectados.
+- Ajuste filtros Min/Max e gere a busca no PoE2 Trade.
+- Opcao de buscar somente pela base.
+- Gems/supports aparecem em sockets visuais e tentam usar arte resolvida pelo RePoE.
+- Artes do jogo nao sao empacotadas neste ZIP; quando indisponiveis, a UI usa fallback.
+
+Na interface:
+Build atual -> Equipment & Market
+Build atual -> Skills
+Build atual -> Motor PoB -> Iniciar motor
+Build atual -> Arvore visual
+Build atual -> Calculos
+
+Carregar build fecha o modal e abre a build automaticamente.
+A arvore usa coordenadas do PoB. Sugestoes comparam uma amostra de caminhos, nao a arvore inteira.
+Calculos sao do PoB com as condicoes mostradas, nao garantia de desempenho no jogo.
+SE MOVEU A PASTA E O MOTOR PAROU
+- Build atual -> Motor PoB -> Detectar / reparar caminhos.
+- Se o checkout headless nao existir mais, use Baixar PoB2 headless estavel.
+- Novos downloads ficam fora do projeto em LOCALAPPDATA e nao quebram ao mover a pasta.
+
+Veja README.md e docs/VALIDACAO-v0192.md.
+
+CODEX MCP: execute INSTALAR_CODEX_MCP.bat uma vez. Deixe o Finder aberto e confirme synergy-finder com /mcp no Codex. Veja CODEX_MCP.md.

@@ -1,0 +1,11 @@
+{
+  "source_version": "0.17.0",
+  "from_version": "0.16.1",
+  "to_version": "0.17.0",
+  "managed_files_verified": 103,
+  "preserved_sentinels": 7,
+  "backup_previous_app_matches": true,
+  "preserved_data_engine_and_credentials": true,
+  "environment": "Linux file-copy integration; Windows process not executed",
+  "result": "pass"
+}

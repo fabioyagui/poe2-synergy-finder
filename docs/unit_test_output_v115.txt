@@ -1,0 +1,167 @@
+node --check: OK
+
+
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/generated/interface/models.py", line 32317, in hydrate_crdt_from_proto
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.L2TH2Y5coc/artifact_tool_v2-2.8.22/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+test_all_supports (test_core.DatabaseTests.test_all_supports) ... ok
+test_atomic_error (test_core.DatabaseTests.test_atomic_error) ... ok
+test_explain_unknown (test_core.DatabaseTests.test_explain_unknown) ... ok
+test_filter_attribute (test_core.DatabaseTests.test_filter_attribute) ... ok
+test_filter_compatibility (test_core.DatabaseTests.test_filter_compatibility) ... ok
+test_filter_real_consume (test_core.DatabaseTests.test_filter_real_consume) ... ok
+test_filter_tag (test_core.DatabaseTests.test_filter_tag) ... ok
+test_global_skills (test_core.DatabaseTests.test_global_skills) ... ok
+test_hashes (test_core.DatabaseTests.test_hashes) ... ok
+test_no_profile_table (test_core.DatabaseTests.test_no_profile_table) ... ok
+test_no_score (test_core.DatabaseTests.test_no_score) ... ok
+test_no_seed_base (test_core.DatabaseTests.test_no_seed_base) ... ok
+test_paginated (test_core.DatabaseTests.test_paginated) ... ok
+test_raw_retrievable (test_core.DatabaseTests.test_raw_retrievable) ... ok
+test_reimport_idempotent (test_core.DatabaseTests.test_reimport_idempotent) ... ok
+test_search_returns_all_tags (test_core.DatabaseTests.test_search_returns_all_tags) ... ok
+test_source_version (test_core.DatabaseTests.test_source_version) ... ok
+test_stat_search (test_core.DatabaseTests.test_stat_search) ... ok
+test_all_1300_gems (test_core.ParserTests.test_all_1300_gems) ... ok
+test_all_tags_retained (test_core.ParserTests.test_all_tags_retained) ... ok
+test_ambiguous_color (test_core.ParserTests.test_ambiguous_color) ... ok
+test_cannot_consume (test_core.ParserTests.test_cannot_consume) ... ok
+test_choose_secondary (test_core.ParserTests.test_choose_secondary) ... ok
+test_color_fallback (test_core.ParserTests.test_color_fallback) ... ok
+test_color_not_damage (test_core.ParserTests.test_color_not_damage) ... ok
+test_color_priority (test_core.ParserTests.test_color_priority) ... ok
+test_color_unknown (test_core.ParserTests.test_color_unknown) ... ok
+test_colors_direct (test_core.ParserTests.test_colors_direct) ... ok
+test_consume_path (test_core.ParserTests.test_consume_path) ... ok
+test_consume_type (test_core.ParserTests.test_consume_type) ... ok
+test_drain_not_from_secondary (test_core.ParserTests.test_drain_not_from_secondary) ... ok
+test_drain_rejected_primary (test_core.ParserTests.test_drain_rejected_primary) ... ok
+test_duplicate_name_no_overwrite (test_core.ParserTests.test_duplicate_name_no_overwrite) ... ok
+test_effects_separate (test_core.ParserTests.test_effects_separate) ... ok
+test_every_record (test_core.ParserTests.test_every_record) ... ok
+test_expression_readable (test_core.ParserTests.test_expression_readable) ... ok
+test_internal_alias_resolution (test_core.ParserTests.test_internal_alias_resolution) ... ok
+test_legacy_retained (test_core.ParserTests.test_legacy_retained) ... ok
+test_markup_plain (test_core.ParserTests.test_markup_plain) ... ok
+test_minion_scope_not_support (test_core.ParserTests.test_minion_scope_not_support) ... ok
+test_missing_rules_not_empty (test_core.ParserTests.test_missing_rules_not_empty) ... ok
+test_nested_type_path (test_core.ParserTests.test_nested_type_path) ... ok
+test_no_curated_name_list (test_core.ParserTests.test_no_curated_name_list) ... ok
+test_no_fire_to_ignite_inference (test_core.ParserTests.test_no_fire_to_ignite_inference) ... ok
+test_no_operator_as_link (test_core.ParserTests.test_no_operator_as_link) ... ok
+test_postfix_preserved (test_core.ParserTests.test_postfix_preserved) ... ok
+test_raw_stats_preserved (test_core.ParserTests.test_raw_stats_preserved) ... ok
+test_rpn_malformed (test_core.ParserTests.test_rpn_malformed) ... ok
+test_rpn_not (test_core.ParserTests.test_rpn_not) ... ok
+test_rpn_residual_or (test_core.ParserTests.test_rpn_residual_or) ... ok
+test_rule_unknown (test_core.ParserTests.test_rule_unknown) ... ok
+test_unresolved_not_approved (test_core.ParserTests.test_unresolved_not_approved) ... ok
+test_bridge_validation (test_engine_v11.EngineSetupTests.test_bridge_validation) ... ok
+test_pob_src_validation (test_engine_v11.EngineSetupTests.test_pob_src_validation) ... ok
+test_shim_repoints_headless_wrapper (test_engine_v11.EngineSetupTests.test_shim_repoints_headless_wrapper) ... ok
+test_expected_bridge_action_shape (test_engine_v11.FakeProcessProtocolTests.test_expected_bridge_action_shape) ... ok
+test_bridge_requires_simplegraphic (test_engine_v112.EngineV112Tests.test_bridge_requires_simplegraphic) ... ok
+test_shim_repoints_simplegraphic (test_engine_v112.EngineV112Tests.test_shim_repoints_simplegraphic) ... ok
+test_gui_install_without_runtime_lua_is_not_valid_src (test_engine_v113.V113Tests.test_gui_install_without_runtime_lua_is_not_valid_src) ... ok
+test_local_checkout_path (test_engine_v113.V113Tests.test_local_checkout_path) ... ok
+test_runtime_requires_xml (test_engine_v113.V113Tests.test_runtime_requires_xml) ... ok
+test_stable_channel (test_engine_v114.V114Tests.test_stable_channel) ... ok
+test_syntax_check_accepts_clean_module (test_engine_v114.V114Tests.test_syntax_check_accepts_clean_module) ... ok
+test_syntax_check_rejects_parse_error (test_engine_v114.V114Tests.test_syntax_check_rejects_parse_error) ... ok
+test_master_style_wrapper_does_not_require_simplegraphic (test_engine_v115.V115Tests.test_master_style_wrapper_does_not_require_simplegraphic) ... ok
+test_shim_without_simplegraphic_stays_simple (test_engine_v115.V115Tests.test_shim_without_simplegraphic_stays_simple) ... ok
+test_wrapper_that_mentions_simplegraphic_requires_helper (test_engine_v115.V115Tests.test_wrapper_that_mentions_simplegraphic_requires_helper) ... ok
+test_parse_xml (test_pob_v09.PobBridgeTests.test_parse_xml) ... ok
+test_raw_deflate_roundtrip (test_pob_v09.PobBridgeTests.test_raw_deflate_roundtrip) ... ok
+test_reject_poe1 (test_pob_v09.PobBridgeTests.test_reject_poe1) ... ok
+test_zlib_code_roundtrip (test_pob_v09.PobBridgeTests.test_zlib_code_roundtrip) ... ok
+test_config_is_preserved (test_pob_v10.PobV10Tests.test_config_is_preserved) ... ok
+test_equipped_items_are_resolved_from_itemset_slots (test_pob_v10.PobV10Tests.test_equipped_items_are_resolved_from_itemset_slots) ... ok
+test_positional_fallback (test_pob_v10.PobV10Tests.test_positional_fallback) ... ok
+test_zero_item_slot_is_not_counted (test_pob_v10.PobV10Tests.test_zero_item_slot_is_not_counted) ... ok
+test_build_can_open_skill_in_finder (test_ui_v10.UiV10Tests.test_build_can_open_skill_in_finder) ... ok
+test_full_build_workspace_exists (test_ui_v10.UiV10Tests.test_full_build_workspace_exists) ... ok
+test_backend_routes (test_ui_v11.UiV11Tests.test_backend_routes) ... ok
+test_stdio_setup_ui (test_ui_v11.UiV11Tests.test_stdio_setup_ui) ... ok
+test_build_tabs_have_renderer (test_ui_v111.UiHotfixTests.test_build_tabs_have_renderer) ... ok
+test_current_pob_functions_exist (test_ui_v111.UiHotfixTests.test_current_pob_functions_exist) ... ok
+test_import_modal_no_longer_calls_old_http_engine (test_ui_v111.UiHotfixTests.test_import_modal_no_longer_calls_old_http_engine) ... ok
+test_refresh_status_can_call_defined_function (test_ui_v111.UiHotfixTests.test_refresh_status_can_call_defined_function) ... ok
+test_download_checkout_ui_and_route (test_ui_v113.UiV113Tests.test_download_checkout_ui_and_route) ... ok
+test_syntax_preflight_visible (test_ui_v114.UiV114Tests.test_syntax_preflight_visible) ... ok
+test_cancel_before_commit (test_v08.DownloadWorkflowTests.test_cancel_before_commit) ... ok
+test_download_failure_preserves_existing_tree_and_gems (test_v08.DownloadWorkflowTests.test_download_failure_preserves_existing_tree_and_gems) ... ok
+test_duplicate_job_rejected (test_v08.DownloadWorkflowTests.test_duplicate_job_rejected) ... ok
+test_snapshot_download_seven_files (test_v08.DownloadWorkflowTests.test_snapshot_download_seven_files) ... ok
+test_all_categories (test_v08.IntegrationTests.test_all_categories) ... ok
+test_atomic_full_job_failure (test_v08.IntegrationTests.test_atomic_full_job_failure) ... ok
+test_case_agnostic (test_v08.IntegrationTests.test_case_agnostic) ... ok
+test_cross_category_chain (test_v08.IntegrationTests.test_cross_category_chain) ... ok
+test_exclusive_ascendancies_not_paired (test_v08.IntegrationTests.test_exclusive_ascendancies_not_paired) ... ok
+test_gem_tags_survive_tree_import (test_v08.IntegrationTests.test_gem_tags_survive_tree_import) ... ok
+test_granted_skill_link (test_v08.IntegrationTests.test_granted_skill_link) ... ok
+test_include_decoration (test_v08.IntegrationTests.test_include_decoration) ... ok
+test_invalid_tree_preserves_old (test_v08.IntegrationTests.test_invalid_tree_preserves_old) ... ok
+test_no_score (test_v08.IntegrationTests.test_no_score) ... ok
+test_only_asc (test_v08.IntegrationTests.test_only_asc) ... ok
+test_only_passives (test_v08.IntegrationTests.test_only_passives) ... ok
+test_only_skills_in_anchor (test_v08.IntegrationTests.test_only_skills_in_anchor) ... ok
+test_patch_mismatch_warns (test_v08.IntegrationTests.test_patch_mismatch_warns) ... ok
+test_prevention_visible (test_v08.IntegrationTests.test_prevention_visible) ... ok
+test_reimport_gems_keeps_tree (test_v08.IntegrationTests.test_reimport_gems_keeps_tree) ... ok
+test_reimport_tree_keeps_gems (test_v08.IntegrationTests.test_reimport_tree_keeps_gems) ... ok
+test_topics (test_v08.IntegrationTests.test_topics) ... ok
+test_tree_raw (test_v08.IntegrationTests.test_tree_raw) ... ok
+test_unknown_tree_stat_searchable (test_v08.IntegrationTests.test_unknown_tree_stat_searchable) ... ok
+test_versions (test_v08.IntegrationTests.test_versions) ... ok
+test_ailment_on_self_scoped (test_v08.SemanticTests.test_ailment_on_self_scoped) ... ok
+test_always_is_producer (test_v08.SemanticTests.test_always_is_producer) ... ok
+test_benefit_against_is_requirement (test_v08.SemanticTests.test_benefit_against_is_requirement) ... ok
+test_cannot_inflict_list (test_v08.SemanticTests.test_cannot_inflict_list) ... ok
+test_chance_is_not_uptime (test_v08.SemanticTests.test_chance_is_not_uptime) ... ok
+test_conditional_application (test_v08.SemanticTests.test_conditional_application) ... ok
+test_consume (test_v08.SemanticTests.test_consume) ... ok
+test_fire_not_ignite (test_v08.SemanticTests.test_fire_not_ignite) ... ok
+test_generate_condition (test_v08.SemanticTests.test_generate_condition) ... ok
+test_increased_is_not_produce (test_v08.SemanticTests.test_increased_is_not_produce) ... ok
+test_intro_supports_is_not_producer (test_v08.SemanticTests.test_intro_supports_is_not_producer) ... ok
+test_mention_not_producer (test_v08.SemanticTests.test_mention_not_producer) ... ok
+test_minion_scope (test_v08.SemanticTests.test_minion_scope) ... ok
+test_more_chance_not_enabler (test_v08.SemanticTests.test_more_chance_not_enabler) ... ok
+test_negative_stat (test_v08.SemanticTests.test_negative_stat) ... ok
+test_no_consume_gained_resource (test_v08.SemanticTests.test_no_consume_gained_resource) ... ok
+test_no_prevents_on_self_immunity (test_v08.SemanticTests.test_no_prevents_on_self_immunity) ... ok
+test_missing_multi_stat_not_zero (test_v08.TranslationTests.test_missing_multi_stat_not_zero) ... ok
+test_negative_handler (test_v08.TranslationTests.test_negative_handler) ... ok
+test_positive (test_v08.TranslationTests.test_positive) ... ok
+test_unknown_handler_not_guessed (test_v08.TranslationTests.test_unknown_handler_not_guessed) ... ok
+test_unknown_stat_kept (test_v08.TranslationTests.test_unknown_stat_kept) ... ok
+test_unresolved_placeholder (test_v08.TranslationTests.test_unresolved_placeholder) ... ok
+test_zero_has_no_effect (test_v08.TranslationTests.test_zero_has_no_effect) ... ok
+test_asc_metadata_separate (test_v08.TreeTests.test_asc_metadata_separate) ... ok
+test_asc_node_classified (test_v08.TreeTests.test_asc_node_classified) ... ok
+test_complete_corpus (test_v08.TreeTests.test_complete_corpus) ... ok
+test_decorative_retained_not_recommended (test_v08.TreeTests.test_decorative_retained_not_recommended) ... ok
+test_different_names_same_ids_stable (test_v08.TreeTests.test_different_names_same_ids_stable) ... ok
+test_edges_explicit (test_v08.TreeTests.test_edges_explicit) ... ok
+test_grants_skill (test_v08.TreeTests.test_grants_skill) ... ok
+test_keystone (test_v08.TreeTests.test_keystone) ... ok
+test_nested_container (test_v08.TreeTests.test_nested_container) ... ok
+test_no_attribute_guess (test_v08.TreeTests.test_no_attribute_guess) ... ok
+test_notable (test_v08.TreeTests.test_notable) ... ok
+test_observed_repoe_node_shapes (test_v08.TreeTests.test_observed_repoe_node_shapes) ... ok
+test_source_paths (test_v08.TreeTests.test_source_paths) ... ok
+test_unknown_stats (test_v08.TreeTests.test_unknown_stats) ... ok
+test_wrong_file_fails (test_v08.TreeTests.test_wrong_file_fails) ... ok
+
+----------------------------------------------------------------------
+Ran 149 tests in 1.021s
+
+OK

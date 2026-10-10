@@ -1,0 +1,30 @@
+{
+  "checks": [
+    "v0.8 interface opens",
+    "passive cards listed",
+    "passive stats and text searchable",
+    "inspector opens",
+    "stats preserved",
+    "raw tree node visible",
+    "ascendancy definitions and nodes visible",
+    "ascendancy selector filters",
+    "STR DEX INT styling retained",
+    "semantic groups visible",
+    "producer group has evidence",
+    "modifiers cross category",
+    "prevention group separate",
+    "conditional paths shown",
+    "chain evidence expands",
+    "no score grades",
+    "narrow layout no horizontal overflow",
+    "tree diagnostics visible",
+    "full and tree-only update buttons",
+    "skill anchor selection works",
+    "type filter rejects DoT-only support for hit skill",
+    "incompatible supports available for diagnosis",
+    "no JS errors"
+  ],
+  "errors": [],
+  "mode": "offline-dom-http-harness",
+  "base": "http://127.0.0.1:43369"
+}
