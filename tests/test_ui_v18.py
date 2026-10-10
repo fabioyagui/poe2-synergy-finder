@@ -17,7 +17,7 @@ class UiV18Tests(unittest.TestCase):
 
     def test_version(self):
         html=(ROOT/"web"/"index.html").read_text(encoding="utf-8")
-        self.assertIn(">0.19.3</span>",html)
+        self.assertIn(">0.19.4</span>",html)
 
 if __name__=="__main__":
     unittest.main()

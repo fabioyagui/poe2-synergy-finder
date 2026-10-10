@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 SERVER_NAME = "poe2-synergy-finder"
-SERVER_VERSION = "0.19.3"
+SERVER_VERSION = "0.19.4"
 MCP_VERSION = "2025-06-18"
 SUPPORTED_MCP_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"]
 ACTIVE_TOOL: str | None = None

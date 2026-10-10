@@ -11,8 +11,8 @@ import sys
 import tempfile
 
 SOURCE=Path(__file__).resolve().parent
-PACKAGE_VERSION='0.19.3'
-SUPPORTED={'0.15.0','0.16.0','0.16.1','0.17.0','0.18.0','0.18.1','0.18.2','0.18.3','0.18.4','0.18.5','0.18.6','0.18.7','0.19.0','0.19.1','0.19.2'}
+PACKAGE_VERSION='0.19.4'
+SUPPORTED={'0.15.0','0.16.0','0.16.1','0.17.0','0.18.0','0.18.1','0.18.2','0.18.3','0.18.4','0.18.5','0.18.6','0.18.7','0.19.0','0.19.1','0.19.2','0.19.3'}
 MANAGED_DIRS={'src','web','tests','docs'}
 MANAGED_FILES={'ABRIR_LOG_MCP.bat','AGENTS.md','ATUALIZAR_INSTALACAO.bat','CODEX_MCP.md','INSTALAR_CODEX_MCP.bat','LEIA_PRIMEIRO.txt','LIMPAR_LOG_MCP.bat','README.md','REMOVER_CODEX_MCP.bat','REPARAR_CODEX_MCP.bat','START_POE2_SYNERGY_FINDER.bat','TESTAR_9_MCP_REAIS.bat','TESTAR_9_MCP_REAIS.py','TESTAR_CODEX_MCP.bat','TESTAR_HANDSHAKE_MCP.bat','TESTAR_HANDSHAKE_MCP.py','TESTAR_SCHEMAS_CODEX.bat','TESTAR_SCHEMAS_CODEX.py','app.py','atualizar_instalacao.py','main.py','mcp_server.py'}
 
@@ -45,7 +45,7 @@ def update(source: Path,target: Path) -> Path:
     source=source.resolve();target=target.resolve()
     if source==target:raise ValueError('Escolha a pasta da instalação anterior, não a pasta nova do ZIP.')
     if not (target/'app.py').is_file() or version(target) not in SUPPORTED:
-        raise ValueError('Este atualizador aceita v0.15, v0.16, v0.17, v0.18, v0.19.0, v0.19.1 ou v0.19.2. A pasta deve conter app.py.')
+        raise ValueError('Este atualizador aceita v0.15, v0.16, v0.17, v0.18, v0.19.0, v0.19.1, v0.19.2 ou v0.19.3. A pasta deve conter app.py.')
     if version(source)!=PACKAGE_VERSION:raise ValueError('Pacote de atualização inválido.')
     relative=files(source)
     for rel in relative:
@@ -99,7 +99,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target',type=Path);parser.add_argument('--yes',action='store_true')
     args=parser.parse_args()
-    print('PoE2 Synergy Finder → 0.19.3\nFecha o Finder e o Motor PoB antes de continuar.\nBuilds, configurações, dados e motor não serão substituídos.')
+    print('PoE2 Synergy Finder → 0.19.4\nFecha o Finder e o Motor PoB antes de continuar.\nBuilds, configurações, dados e motor não serão substituídos.')
     try:
         target=args.target or choose_target()
         if not args.yes:
@@ -107,7 +107,7 @@ def main():
             if answer not in {'s','sim','y','yes'}:raise ValueError('Atualização cancelada.')
         backup=update(SOURCE,target)
         print('\nAtualização concluída. Backup do código anterior:\n'+str(backup))
-        print('\nAbra o START_POE2_SYNERGY_FINDER.bat da mesma pasta que você já usava.\nO nome da pasta pode continuar v0.15; a interface deve mostrar 0.19.3.')
+        print('\nAbra o START_POE2_SYNERGY_FINDER.bat da mesma pasta que você já usava.\nO nome da pasta pode continuar v0.15; a interface deve mostrar 0.19.4.')
         return 0
     except Exception as exc:
         print('\nAtualização não concluída: '+str(exc));return 1

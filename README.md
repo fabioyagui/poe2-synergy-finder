@@ -1,4 +1,4 @@
-# PoE2 Synergy Finder v0.19.3
+# PoE2 Synergy Finder v0.19.4
 
 ## Build visual + Market + Árvore + Cálculos
 
@@ -23,7 +23,7 @@ Nesta versão:
 
 O atualizador aceita instalações da família v0.15 até v0.19.2. Faz backup do código e rollback se uma cópia falhar. Não copia, apaga ou substitui `data/` ou `engine/`; biblioteca, banco, build atual, configuração e PoB permanecem.
 
-**Não precisa baixar PoB, bridge ou RePoE novamente.** Reinicie o motor após atualizar, porque a extensão local de árvore/cálculos é carregada na inicialização. A pasta pode manter o nome antigo; o cabeçalho deve mostrar v0.19.3.
+**Não precisa baixar PoB, bridge ou RePoE novamente.** Reinicie o motor após atualizar, porque a extensão local de árvore/cálculos é carregada na inicialização. A pasta pode manter o nome antigo; o cabeçalho deve mostrar v0.19.4.
 
 Se você **moveu/renomeou a pasta inteira** e o diagnóstico perdeu caminhos absolutos, abra **Build atual → Motor PoB → Detectar / reparar caminhos**. A v0.19.2 relocaliza checkouts e também reconhece a instalação empacotada do PoB2; ela que vieram junto com a pasta e também procura de forma limitada em projetos próximos/Documentos. Se o checkout headless realmente não existir mais, use **Baixar PoB2 headless estável**; novos downloads ficam em `%LOCALAPPDATA%\PoE2 Synergy Finder\engine`, fora da pasta do projeto.
 
@@ -233,6 +233,12 @@ Corrige a v0.18.5 que podia atualizar a interface sem substituir `mcp_server.py`
 - O app não abre silenciosamente em 8778/8779 quando outra instância já ocupa a porta padrão. Feche a janela antiga antes de iniciar uma nova versão.
 - O reparo UTF-8 do MCP está incorporado no servidor desta versão.
 
+
+## v0.19.4 — motor resiliente a OneDrive / WinError 5
+
+- O overlay temporário do bridge PoB deixou de ser criado dentro de `engine/` do projeto e passa a usar `%LOCALAPPDATA%\PoE2 Synergy Finder\engine`.
+- Se uma cópia anterior do overlay estiver temporariamente bloqueada por Windows, OneDrive ou um processo antigo, o Finder cria uma cópia nova com nome único e inicia o motor em vez de falhar com `WinError 5`.
+- `data/` e o bridge de origem continuam onde estavam; somente arquivos gerados de runtime ficam locais por máquina.
 
 ## v0.19.3 — MCP portátil após mover a pasta
 

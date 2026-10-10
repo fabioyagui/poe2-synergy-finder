@@ -15,14 +15,15 @@ import zipfile
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENGINE_DIR = PROJECT_ROOT / "engine"
 BRIDGE_DIR = ENGINE_DIR / "pob-api"
-BRIDGE_OVERLAY_DIR = ENGINE_DIR / "pob-api-v0126"
 BRIDGE_PATCH_VERSION = "0.12.6-support-mod-pipeline-diagnostics"
 CONFIG_PATH = PROJECT_ROOT / "data" / "pob" / "engine_config.json"
 
-# New headless PoB downloads live outside the project folder on Windows.  The
-# Finder itself can then be moved/renamed without invalidating the heavyweight
-# checkout. Existing project-local checkouts remain supported and are rebased
-# automatically when the whole Finder folder moves.
+# Generated/runtime engine files must not live inside a OneDrive-synced project
+# folder. Windows/OneDrive can keep handles on directories while the Finder is
+# rebuilding its patched PoB bridge, which used to make shutil.rmtree() fail
+# with WinError 5. Heavyweight PoB downloads and bridge overlays therefore use
+# a machine-local stable directory. Existing project-local source files remain
+# supported as read-only inputs.
 def _stable_user_engine_dir() -> Path:
     local = os.environ.get("LOCALAPPDATA")
     if local:
@@ -31,6 +32,7 @@ def _stable_user_engine_dir() -> Path:
 
 USER_ENGINE_DIR = _stable_user_engine_dir()
 USER_POB_CHECKOUT = USER_ENGINE_DIR / "PathOfBuilding-PoE2"
+BRIDGE_OVERLAY_DIR = USER_ENGINE_DIR / "pob-api-v0126"
 
 UPSTREAM_BRIDGE_BASE = "https://raw.githubusercontent.com/zgrummons/pob2-mcp/main/pob-api/"
 UPSTREAM_BRIDGE_FILES = {
@@ -1400,17 +1402,51 @@ end
 
 
 def _prepare_bridge_overlay(source_bridge: Path) -> Path:
-    """Patch a private bridge copy so older Finder folders stay untouched."""
+    """Patch a private bridge copy in machine-local storage.
+
+    The project itself may be inside OneDrive.  A previous implementation kept
+    this generated overlay under PROJECT_ROOT/engine and deleted it on every
+    start. OneDrive or a stale Lua process could hold a directory handle and
+    make that delete fail with WinError 5.  The normal target now lives under
+    %LOCALAPPDATA%; if even that target is temporarily locked, create a fresh
+    sibling overlay for this start instead of failing the whole engine.
+    """
     if not _valid_bridge(source_bridge):
         raise EngineError("Bridge de origem inválido.")
 
-    if source_bridge.resolve() == BRIDGE_OVERLAY_DIR.resolve():
+    target = BRIDGE_OVERLAY_DIR
+    if source_bridge.resolve() == target.resolve():
         raise EngineError("Selecione o bridge de origem, nao a copia temporaria pob-api-v0126.")
-    if BRIDGE_OVERLAY_DIR.exists():
-        shutil.rmtree(BRIDGE_OVERLAY_DIR)
-    shutil.copytree(source_bridge, BRIDGE_OVERLAY_DIR)
 
-    buildops = BRIDGE_OVERLAY_DIR / "API" / "BuildOps.lua"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        try:
+            shutil.rmtree(target)
+        except OSError as exc:
+            # Windows can transiently lock a generated bridge directory.  The
+            # overlay is disposable, so use a fresh directory rather than
+            # requiring admin rights or asking the user to fight OneDrive.
+            if isinstance(exc, PermissionError) or getattr(exc, "winerror", None) in {5, 32}:
+                target = target.parent / (
+                    f"{target.name}-{os.getpid()}-{time.time_ns()}"
+                )
+            else:
+                raise
+
+    try:
+        shutil.copytree(source_bridge, target)
+    except OSError as exc:
+        if target == BRIDGE_OVERLAY_DIR and (
+            isinstance(exc, PermissionError) or getattr(exc, "winerror", None) in {5, 32}
+        ):
+            target = target.parent / (
+                f"{target.name}-{os.getpid()}-{time.time_ns()}"
+            )
+            shutil.copytree(source_bridge, target)
+        else:
+            raise
+
+    buildops = target / "API" / "BuildOps.lua"
     patched = _patch_buildops_exact_support_compat(
         buildops.read_text(encoding="utf-8")
     )
@@ -1418,7 +1454,7 @@ def _prepare_bridge_overlay(source_bridge: Path) -> Path:
     patched = _patch_buildops_native_support_whatif(patched)
     buildops.write_text(patched, encoding="utf-8")
 
-    handlers = BRIDGE_OVERLAY_DIR / "API" / "Handlers.lua"
+    handlers = target / "API" / "Handlers.lua"
     patched_handlers = _patch_handlers_calcs_output(
         handlers.read_text(encoding="utf-8")
     )
@@ -1426,18 +1462,18 @@ def _prepare_bridge_overlay(source_bridge: Path) -> Path:
     handlers.write_text(patched_handlers, encoding="utf-8")
 
     from src.tree_simulator import install_extension
-    install_extension(BRIDGE_OVERLAY_DIR)
+    install_extension(target)
     from src.workbench import install_extension as install_workbench
-    install_workbench(BRIDGE_OVERLAY_DIR)
+    install_workbench(target)
 
     for generated in (
-        BRIDGE_OVERLAY_DIR / "bootstrap.local.lua",
-        BRIDGE_OVERLAY_DIR / "HeadlessWrapper.local.lua",
+        target / "bootstrap.local.lua",
+        target / "HeadlessWrapper.local.lua",
     ):
         if generated.exists():
             generated.unlink()
 
-    return BRIDGE_OVERLAY_DIR
+    return target
 
 def _make_bootstrap_shim(bridge: Path, pob_src: Path) -> Path:
     upstream_bootstrap = (bridge / "bootstrap.lua").read_text(encoding="utf-8")
