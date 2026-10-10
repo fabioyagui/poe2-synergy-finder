@@ -253,3 +253,15 @@ Corrige a v0.18.5 que podia atualizar a interface sem substituir `mcp_server.py`
 - O campo manual **PoB2 / programa ou src** aceita tanto o diretório instalado quanto `PathOfBuilding-PoE2\\src` de um checkout.
 - O motor agora monta `LUA_PATH` e `LUA_CPATH` a partir do runtime realmente detectado/configurado, sem assumir sempre `src\\..\\runtime`.
 - `Detectar / reparar caminhos` tenta primeiro reutilizar o Runtime já encontrado como possível diretório do programa PoB2 antes de procurar outros checkouts.
+
+## Mapa de âncoras (economia de recursos)
+
+Porta o método do `le-economy` (Last Epoch) para o PoE2. `src/economy.py` lê os textos de skills, supports, passivas e ascendências do catálogo RePoE já importado e extrai arestas `recurso | verbo | efeito` (PRODUCES, CONSUMES, READS, REPLICATES, UNLOCKS, LIMITS, AMPLIFIES, CONVERTS).
+
+- **Âncora**: efeito que replica, lê ou consome um recurso para dano "more", ou destrava teto/custo.
+- **Conectores**: tudo que produz esse recurso.
+- **Escala**: o que amplifica o recurso.
+
+Quatro tools novas no MCP (13 no total): `economy_status`, `economy_anchors`, `economy_resource`, `economy_lookup`. As mesmas consultas existem em `/api/economy/...` no Finder aberto. Depois de atualizar, execute `REPARAR_CODEX_MCP.bat` para o Codex enxergar as tools novas.
+
+Limites: as arestas são palpites por regra sobre o texto do jogo, não mecânica confirmada nem pontuação de poder; quem valida número é o PoB. Uniques e mods de item ainda não entram no mapa. Não há comparação entre patches (NEW/CHANGED), loops nem calibração contra builds conhecidas.

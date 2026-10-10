@@ -531,6 +531,47 @@ def tool_synergies(args: dict) -> dict:
     }
 
 
+def _economy(path: str, args: dict, lists=(), flags=(), numbers=None) -> dict:
+    params = {}
+    for key, value in args.items():
+        if value in (None, "", []):
+            continue
+        if key in lists:
+            params[key] = ",".join(str(x) for x in (value if isinstance(value, list) else [value]))
+        elif key in flags:
+            params[key] = "1" if value else "0"
+        elif numbers and key in numbers:
+            low, high = numbers[key]
+            params[key] = str(max(low, min(high, int(value))))
+        else:
+            params[key] = str(value)
+    return get("/api/economy/" + path + ("?" + urllib.parse.urlencode(params) if params else ""))
+
+
+def tool_economy_status(args: dict) -> dict:
+    return _economy("status", {})
+
+
+def tool_economy_anchors(args: dict) -> dict:
+    data = _economy("anchors", args, lists=("kinds",), flags=("include_plain_reads", "include_universal"),
+                    numbers={"limit": (1, 60)})
+    for row in data.get("results") or []:
+        row["text"] = _short_text(row.get("text"), 260)
+    return data
+
+
+def tool_economy_resource(args: dict) -> dict:
+    data = _economy("resource", args, lists=("verbs", "kinds"), numbers={"limit_per_verb": (1, 40)})
+    for group in (data.get("by_verb") or {}).values():
+        for row in group.get("edges") or []:
+            row["text"] = _short_text(row.get("text"), 260)
+    return data
+
+
+def tool_economy_lookup(args: dict) -> dict:
+    return _economy("lookup", args, lists=("kinds",), numbers={"limit": (1, 30)})
+
+
 def tool_inspect_entity(args: dict) -> dict:
     eid = str(args.get("id") or "").strip()
     if not eid:
@@ -680,6 +721,57 @@ TOOLS = {
             "additionalProperties": False,
         },
         "call": tool_inspect_entity,
+    },
+    "economy_status": {
+        "description": "Mapa de economia de recursos (método das âncoras): comece aqui. Devolve o método, os verbos e a lista de recursos por categoria.",
+        "schema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "call": tool_economy_status,
+    },
+    "economy_anchors": {
+        "description": "Âncoras candidatas ranqueadas: efeitos que REPLICAM, LEEM ou CONSOMEM um recurso para dano 'more', ou destravam teto/custo. by_resource mostra onde há mais multiplicadores possíveis. Palpite por regra sobre texto do jogo, não pontuação de poder.",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "resource": {"type": "string", "description": "Opcional: limita a um recurso (ex.: power charge, freeze, rage)."},
+                "kinds": {"type": "array", "items": {"type": "string"}, "description": "SKILL, SUPPORT, PASSIVE, NOTABLE, KEYSTONE, ASCENDANCY_NODE, META."},
+                "ascendancy": {"type": "string", "description": "Esconde nós de outras ascendências."},
+                "include_plain_reads": {"type": "boolean", "default": False},
+                "include_universal": {"type": "boolean", "default": False},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 60, "default": 40},
+            },
+            "additionalProperties": False,
+        },
+        "call": tool_economy_anchors,
+    },
+    "economy_resource": {
+        "description": "Um recurso em detalhe: quem PRODUCES, CONSUMES, READS, REPLICATES, UNLOCKS, LIMITS e AMPLIFIES, com o texto exato. Use verbs=[PRODUCES, UNLOCKS] para listar conectores de uma âncora.",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "resource": {"type": "string"},
+                "verbs": {"type": "array", "items": {"type": "string"}},
+                "kinds": {"type": "array", "items": {"type": "string"}},
+                "ascendancy": {"type": "string"},
+                "limit_per_verb": {"type": "integer", "minimum": 1, "maximum": 40, "default": 25},
+            },
+            "required": ["resource"],
+            "additionalProperties": False,
+        },
+        "call": tool_economy_resource,
+    },
+    "economy_lookup": {
+        "description": "Texto completo de skills, supports e passivas cujo nome ou texto contém a busca, com os recursos e verbos detectados em cada um.",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "kinds": {"type": "array", "items": {"type": "string"}},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 30, "default": 30},
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+        "call": tool_economy_lookup,
     },
 }
 

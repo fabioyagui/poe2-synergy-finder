@@ -19,6 +19,15 @@ When the `synergy-finder` MCP server is available, use it for Path of Exile 2 bu
 5. Use `search_catalog` / `search_synergies` only for the mechanic being investigated.
 6. Never request or dump the whole passive tree or raw RePoE corpus into context.
 
+## Anchor discovery (resource economy)
+Use this before picking a skill, when the question is "where is the power" rather than "tune this build".
+1. `economy_status` once: method, verbs, resource list.
+2. `economy_anchors`: effects that REPLICATE, READ or CONSUME a resource for "more" damage, or UNLOCK a cap/cost. `by_resource` shows where the most multipliers can stack.
+3. `economy_resource` on the anchor's resource with `verbs=["PRODUCES","UNLOCKS"]`: connectors. Prefer producers in different slots (skill, support, passive, ascendancy).
+4. `economy_resource` with `verbs=["AMPLIFIES","LIMITS"]`: scaling and conflicts. `economy_lookup` for the full text of any piece.
+5. Only then build it and validate with `get_calcs` / `compare_tree_change`.
+Edges are rule-based guesses over game text, not confirmed mechanics or a power score. Quote the exact text and mark unconfirmed interactions [VERIFY]. Uniques and item mods are not in the map yet.
+
 ## Recommendation style
 State which facts came from PoB calculations versus RePoE mechanical evidence. Prefer a few tested candidates with explicit tradeoffs over broad unvalidated advice.
 
