@@ -572,6 +572,13 @@ def tool_economy_lookup(args: dict) -> dict:
     return _economy("lookup", args, lists=("kinds",), numbers={"limit": (1, 30)})
 
 
+def tool_verify_anchor(args: dict) -> dict:
+    params = {"skill": str(args.get("skill") or ""), "level": str(max(1, min(100, int(args.get("level") or 14))))}
+    if args.get("family"):
+        params["family"] = str(args["family"])
+    return get("/api/lab/verify-anchor?" + urllib.parse.urlencode(params))
+
+
 def tool_inspect_entity(args: dict) -> dict:
     eid = str(args.get("id") or "").strip()
     if not eid:
@@ -772,6 +779,20 @@ TOOLS = {
             "additionalProperties": False,
         },
         "call": tool_economy_lookup,
+    },
+    "verify_anchor": {
+        "description": "Mede no PoB, numa build mínima (arma branca, sem supports), quanto o dano de uma skill sobe com cargas e com cada estado do inimigo. Confirma ou derruba uma âncora do mapa: 'specific' são multiplicadores próprios da skill; 'generic' (shock, armadura quebrada) quase toda skill tem. Leva alguns segundos.",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "skill": {"type": "string", "description": "Nome exato da skill ativa (ex.: Falling Thunder)."},
+                "family": {"type": "string", "description": "Opcional: Quarterstaff, Spear, Mace, Bow, Crossbow, Elemental, Occult, Primal. Define a classe e a arma branca."},
+                "level": {"type": "integer", "minimum": 1, "maximum": 100, "default": 14, "description": "Nível do personagem e do inimigo."},
+            },
+            "required": ["skill"],
+            "additionalProperties": False,
+        },
+        "call": tool_verify_anchor,
     },
 }
 

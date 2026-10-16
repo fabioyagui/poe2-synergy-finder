@@ -238,6 +238,23 @@ _PARTICIPLE = re.compile(r"(?:ed|en)$", re.I)
 _BECOMES = re.compile(r"(?:becomes?|are|is|be|get|gets)(?: \w+)? $", re.I)
 MORE_RX = re.compile(
     r"\bmore\b(?! than)|as extra|\bdouble\b|\btwice\b|\brepeats?\b|additional (?:time|projectile|chain|strike|attack|cast)", re.I)
+# "Pins as though dealing 600% more Damage", "more susceptible to being Frozen", "more Stun buildup":
+# é acúmulo de ailment/stun, não dano. O texto parece âncora e não é.
+BUILDUP_RX = re.compile(r"as though|susceptible|build-?up|more (?:likely|quickly|easily|effective at|chance to)", re.I)
+DEFENCE_RX = re.compile(r"\b(?:evasion|armour|energy shield|guard|stun threshold|ailment threshold|recovery|regenerat\w*|"
+                        r"block chance|resistances?|deflection|maximum life|maximum mana|life leech|mana leech)\b", re.I)
+DAMAGE_RX = re.compile(r"\bdamage\b|\bdps\b|projectiles?|repeat|chain|hits?\b|strikes?\b|magnitude", re.I)
+# Recursos que só existem dentro de uma skill: os Stages do Flameblast não alimentam o Volcano.
+PER_SKILL_RESOURCES = {"stage"}
+
+
+def axis_of(text: str) -> str:
+    """Em que eixo o multiplicador paga: 'dano', 'defesa' ou 'acumulo'."""
+    if BUILDUP_RX.search(text):
+        return "acumulo"
+    if DEFENCE_RX.search(text) and not DAMAGE_RX.search(text):
+        return "defesa"
+    return "dano"
 
 
 def verbs_for(clause: str, start: int, end: int, resource: str) -> list[str]:
@@ -314,7 +331,8 @@ def edges_for(record: dict) -> list[dict]:
         found = mentions(clause, spans)
         for resource, s, e in found:
             for verb in verbs_for(clause, s, e, resource) or ["AMBIGUOUS"]:
-                edges.append({"resource": resource, "verb": verb, "text": clause})
+                name = f'{resource} ({record["name"]})' if resource in PER_SKILL_RESOURCES else resource
+                edges.append({"resource": name, "verb": verb, "text": clause})
     resolved = {x["resource"] for x in edges if x["verb"] != "AMBIGUOUS"}
     seen, out = set(), []
     for x in edges:
@@ -351,8 +369,15 @@ class EconomyMap:
         for name, edges in by_resource.items():
             verbs = Counter(e["verb"] for e in edges)
             producers = [self.records[e["i"]] for e in edges if e["verb"] == "PRODUCES"]
+            sinks = defaultdict(set)
+            for e in edges:
+                if e["verb"] in ("READS", "REPLICATES", "CONSUMES"):
+                    sinks[axis_of(e["text"])].add(e["i"])
             table[name] = {
-                "resource": name, "category": CATEGORY.get(name, ""), "mentions": len(edges),
+                "resource": name, "category": CATEGORY.get(name.split(" (")[0], ""), "mentions": len(edges),
+                # o recurso que "paga duas vezes": quantos registros distintos leem o recurso em cada eixo
+                "sinks_dano": len(sinks["dano"]), "sinks_defesa": len(sinks["defesa"]),
+                "paga_em": sorted(k for k in ("dano", "defesa") if sinks[k]),
                 "producers": verbs["PRODUCES"], "consumers": verbs["CONSUMES"], "readers": verbs["READS"],
                 "replicas": verbs["REPLICATES"], "unlocks": verbs["UNLOCKS"], "limits": verbs["LIMITS"],
                 "amplifies": verbs["AMPLIFIES"], "conversions": verbs["CONVERTS"], "ambiguous": verbs["AMBIGUOUS"],
@@ -396,18 +421,24 @@ class EconomyMap:
 
     @staticmethod
     def _anchor_score(e: dict, include_plain_reads: bool) -> float:
+        axis = axis_of(e["text"])
+        if axis == "acumulo":
+            return 0
         more = bool(MORE_RX.search(e["text"]))
         if e["verb"] == "REPLICATES":
-            return 5
-        if e["verb"] == "READS" and more:
-            return 4
-        if e["verb"] == "CONSUMES" and more:
-            return 3.5
-        if e["verb"] == "UNLOCKS":
-            return 2
-        if e["verb"] == "READS" and include_plain_reads:
-            return 1
-        return 0
+            base = 5
+        elif e["verb"] == "READS" and more:
+            base = 4
+        elif e["verb"] == "CONSUMES" and more:
+            base = 3.5
+        elif e["verb"] == "UNLOCKS":
+            base = 2
+        elif e["verb"] == "READS" and include_plain_reads:
+            base = 1
+        else:
+            return 0
+        # Multiplicador de defesa vale, mas não compete de igual com um de dano.
+        return base / 2 if axis == "defesa" else base
 
     def anchors(self, resource: str = "", kinds=None, ascendancy: str = "", include_plain_reads: bool = False,
                 include_universal: bool = False, limit: int = 40) -> dict:
@@ -442,13 +473,14 @@ class EconomyMap:
             if len(results) >= cap:
                 continue
             row = self.resources[e["resource"]]
-            results.append({"score": score, **self._edge_out(e),
+            results.append({"score": score, "axis": axis_of(e["text"]), **self._edge_out(e),
                             "scaling": {"producers": row["producers"], "producer_slots": row["producer_slots"],
                                         "amplifies": row["amplifies"], "unlocks": row["unlocks"],
                                         "limits": row["limits"]}})
         # Onde há mais multiplicadores possíveis: recursos com mais âncoras distintas.
         by_resource = [{"resource": name, "anchors": count, "producers": self.resources[name]["producers"],
-                        "amplifies": self.resources[name]["amplifies"], "unlocks": self.resources[name]["unlocks"]}
+                        "amplifies": self.resources[name]["amplifies"], "unlocks": self.resources[name]["unlocks"],
+                        "paga_em": self.resources[name]["paga_em"]}
                        for name, count in per_resource.most_common(15)]
         return {"ok": True, "total": len(seen), "by_resource": by_resource, "results": results,
                 "hint": "Próximo: economy_resource no recurso da âncora com verbs=[PRODUCES, UNLOCKS] para listar conectores."}

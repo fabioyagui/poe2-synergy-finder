@@ -23,9 +23,10 @@ When the `synergy-finder` MCP server is available, use it for Path of Exile 2 bu
 Use this before picking a skill, when the question is "where is the power" rather than "tune this build".
 1. `economy_status` once: method, verbs, resource list.
 2. `economy_anchors`: effects that REPLICATE, READ or CONSUME a resource for "more" damage, or UNLOCK a cap/cost. `by_resource` shows where the most multipliers can stack.
-3. `economy_resource` on the anchor's resource with `verbs=["PRODUCES","UNLOCKS"]`: connectors. Prefer producers in different slots (skill, support, passive, ascendancy).
-4. `economy_resource` with `verbs=["AMPLIFIES","LIMITS"]`: scaling and conflicts. `economy_lookup` for the full text of any piece.
-5. Only then build it and validate with `get_calcs` / `compare_tree_change`.
+3. `verify_anchor` on each candidate skill: PoB measures the real multiplier (charges, enemy states). Only `specific` rows confirm an anchor; `axis` tells damage from defence. Text anchors without a PoB number are hypotheses.
+4. `economy_resource` on the anchor's resource with `verbs=["PRODUCES","UNLOCKS"]`: connectors. Prefer producers in different slots (skill, support, passive, ascendancy).
+5. `economy_resource` with `verbs=["AMPLIFIES","LIMITS"]`: scaling and conflicts. `economy_lookup` for the full text of any piece.
+6. Only then build it and validate with `get_calcs` / `compare_tree_change`.
 Edges are rule-based guesses over game text, not confirmed mechanics or a power score. Quote the exact text and mark unconfirmed interactions [VERIFY]. Uniques and item mods are not in the map yet.
 
 ## Recommendation style

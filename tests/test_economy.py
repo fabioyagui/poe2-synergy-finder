@@ -130,5 +130,48 @@ class MapTests(unittest.TestCase):
         self.assertEqual(status["meta"], {"source": "fixture"})
 
 
+class AxisTests(unittest.TestCase):
+    def test_buildup_text_is_not_an_anchor(self):
+        self.assertEqual(economy.axis_of("Pins Enemies as though dealing 600% more Damage"), "acumulo")
+        self.assertEqual(economy.axis_of("Mark a target, making them more susceptible to being Frozen."), "acumulo")
+        self.assertEqual(economy.axis_of("50% more Stun buildup"), "acumulo")
+        m = economy.EconomyMap.from_entities([
+            entity("Artillery Ballista", "SKILL", "[Pinned|Pins] Enemies as though dealing 600% more Damage"),
+        ])
+        self.assertEqual(m.anchors(include_plain_reads=True)["results"], [])
+
+    def test_defence_multiplier_scores_half_and_is_tagged(self):
+        self.assertEqual(economy.axis_of("Gain an additional 4 Guard per ten Strength if Heavily Stunning"), "defesa")
+        self.assertEqual(economy.axis_of("30% more Damage per Power Charge"), "dano")
+        m = economy.EconomyMap.from_entities([
+            entity("Vanguard I", "SUPPORT", "Gain an additional 4 [Guard] per ten [Strength] if Heavily Stunning"),
+            entity("Flicker Strike", "SKILL", "Strikes 2 additional times per Power Charge"),
+        ])
+        rows = {r["name"]: r for r in m.anchors()["results"]}
+        self.assertEqual((rows["Flicker Strike"]["score"], rows["Flicker Strike"]["axis"]), (5, "dano"))
+        self.assertEqual((rows["Vanguard I"]["score"], rows["Vanguard I"]["axis"]), (2.5, "defesa"))
+
+    def test_stages_are_scoped_to_their_skill(self):
+        m = economy.EconomyMap.from_entities([
+            entity("Flameblast", "SKILL", "75% more damage per Stage", "10 maximum Stages"),
+            entity("Wind Dancer", "SKILL", "10% more [Evasion] Rating per stage"),
+        ])
+        self.assertIn("stage (Flameblast)", m.resources)
+        self.assertIn("stage (Wind Dancer)", m.resources)
+        self.assertNotIn("stage", m.resources)
+        self.assertEqual(m.resources["stage (Flameblast)"]["category"], "stack")
+        self.assertEqual(m.resources["stage (Flameblast)"]["paga_em"], ["dano"])
+        self.assertEqual(m.resources["stage (Wind Dancer)"]["paga_em"], ["defesa"])
+
+    def test_sinks_per_axis_count_distinct_records(self):
+        m = economy.EconomyMap.from_entities([
+            entity("A", "SKILL", "30% more Damage per Power Charge"),
+            entity("B", "NOTABLE", "20% more [Armour] per Power Charge"),
+            entity("C", "NOTABLE", "Consume a Power Charge to deal 40% more Damage"),
+        ])
+        row = m.resources["power charge"]
+        self.assertEqual((row["sinks_dano"], row["sinks_defesa"], row["paga_em"]), (2, 1, ["dano", "defesa"]))
+
+
 if __name__ == "__main__":
     unittest.main()

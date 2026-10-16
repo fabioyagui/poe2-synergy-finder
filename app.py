@@ -117,6 +117,9 @@ def make_handler(application):
                     if p.path=='/api/economy/resource':
                         return self.json(eco.resource(get('resource'),verbs=many('verbs'),kinds=many('kinds'),ascendancy=get('ascendancy'),limit_per_verb=int(get('limit_per_verb','25'))))
                     if p.path=='/api/economy/lookup':return self.json(eco.lookup(get('query'),kinds=many('kinds'),limit=int(get('limit','30'))))
+                if p.path=='/api/lab/verify-anchor':
+                    from src.lab import service as lab_service
+                    return self.json(lab_service.verify_anchor({'skill':get('skill'),'family':get('family'),'level':get('level','14')}))
                 if p.path=='/api/explore':
                     kw={k:get(k) for k in ('q','skill_id','component','color','tag','relation','ascendancy','kind')}
                     for key,choices,default in [('scope',{'supports','all','passives','ascendancies'},'supports'),('mode',{'match','all','unknown','incompatible'},'match')]:

@@ -262,6 +262,6 @@ Porta o método do `le-economy` (Last Epoch) para o PoE2. `src/economy.py` lê o
 - **Conectores**: tudo que produz esse recurso.
 - **Escala**: o que amplifica o recurso.
 
-Quatro tools novas no MCP (13 no total): `economy_status`, `economy_anchors`, `economy_resource`, `economy_lookup`. As mesmas consultas existem em `/api/economy/...` no Finder aberto. No Claude Code, abra a sessão nesta pasta: o `.mcp.json` registra o servidor e o `CLAUDE.md` carrega as instruções do `AGENTS.md`. No Codex, execute `REPARAR_CODEX_MCP.bat` depois de atualizar.
+Cinco tools no MCP (14 no total): `economy_status`, `economy_anchors`, `economy_resource`, `economy_lookup` e `verify_anchor`, que mede no PoB (módulo `src/lab`) quanto o dano de uma skill sobe com cargas e com cada estado do inimigo. As mesmas consultas existem em `/api/economy/...` no Finder aberto. No Claude Code, abra a sessão nesta pasta: o `.mcp.json` registra o servidor e o `CLAUDE.md` carrega as instruções do `AGENTS.md`. No Codex, execute `REPARAR_CODEX_MCP.bat` depois de atualizar.
 
 Limites: as arestas são palpites por regra sobre o texto do jogo, não mecânica confirmada nem pontuação de poder; quem valida número é o PoB. Uniques e mods de item ainda não entram no mapa. Não há comparação entre patches (NEW/CHANGED), loops nem calibração contra builds conhecidas.
