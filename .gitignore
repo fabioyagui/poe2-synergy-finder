@@ -12,3 +12,4 @@ engine/
 
 # Pesquisa pessoal do autor (manuais, prompts, método): fica só na máquina local.
 private/
+CLAUDE.local.md
