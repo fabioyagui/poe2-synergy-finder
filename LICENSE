@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third-party notices: web/vendor/xterm.js and addon-fit.js are from the xterm.js
-project (MIT, see web/vendor/LICENSE-xterm.txt). Path of Building, the pob2-mcp
-bridge (GPL-3.0) and RePoE data are downloaded by the user at runtime and are not
-redistributed here. Game data and artwork belong to Grinding Gear Games. This
-project is not affiliated with GGG, Path of Building, poe.ninja, Anthropic or OpenAI.

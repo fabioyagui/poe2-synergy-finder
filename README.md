@@ -1,4 +1,8 @@
-# PoE2 Synergy Finder v0.19.4
+# PoE2 Synergy Finder
+
+Laboratório de builds para Path of Exile 2: Path of Building headless programável, mapa de âncoras (economia de recursos) e um servidor MCP com 15 tools para Claude Code e Codex, mais um terminal dos dois CLIs dentro da própria página. Licença MIT; dados do jogo não são redistribuídos (ver `NOTICE.md`).
+
+Versão atual: 0.19.4.
 
 ## Build visual + Market + Árvore + Cálculos
 
