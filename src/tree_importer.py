@@ -44,10 +44,21 @@ def parse(tree,ascendancies,translations=None):
     if not isinstance(ascendancies,dict):raise ValueError('Ascendências devem ser um objeto JSON.')
     asc={str(k):v for k,v in ascendancies.items() if isinstance(v,dict) and isinstance(v.get('name'),str)}
     if not asc:raise ValueError('Nenhuma definição de ascendência reconhecida. A base anterior foi preservada.')
+    # Ascendências alternativas (ex.: Abyssal Lich sobre Lich) não têm nós na árvore: trocam nós da
+    # ascendência base por outros declarados em passive_overrides. Sem isto elas ficam sem registro.
+    override_nodes=0
+    for aid,a in asc.items():
+        for ov in a.get('passive_overrides') or []:
+            to=ov.get('to_passive') if isinstance(ov,dict) else None
+            if not is_node(to):continue
+            key=str(to.get('hash',f'{aid}:{ov.get("from_hash")}'))
+            if key in nodes:continue
+            nodes[key]=dict(to,ascendancy=to.get('ascendancy') or aid,overrides_hash=ov.get('from_hash'))
+            override_nodes+=1
     tr=Translator(translations);out=[];edges=[];known_hash={str(n.get('hash',k)):k for k,n in nodes.items()}
     diag={'nodes':len(nodes),'ascendancies':len(asc),'tree_container':path,'translated_nodes':0,
           'untranslated_stats':0,'stats':0,'unknown_ascendancies':[],'declared_edges':0,
-          'translation_groups':len(tr.groups),'granted_skills':0,'decorative_nodes':0}
+          'translation_groups':len(tr.groups),'granted_skills':0,'decorative_nodes':0,'override_nodes':override_nodes}
     def base(sid,name,kind):
         return {'id':stable_id(sid),'source':SOURCE,'source_id':str(sid),'name':name,'kind':kind,
             'color':'w','attribute':'ÁRVORE','color_source':'sem atributo de gem','weights':{},
