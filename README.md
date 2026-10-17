@@ -265,3 +265,9 @@ Porta o método do `le-economy` (Last Epoch) para o PoE2. `src/economy.py` lê o
 Seis tools no MCP (15 no total): `economy_status`, `economy_anchors`, `economy_resource`, `economy_lookup` e `verify_anchor`, que mede no PoB (módulo `src/lab`) quanto o dano de uma skill sobe com cargas e com cada estado do inimigo. As mesmas consultas existem em `/api/economy/...` no Finder aberto. No Claude Code, abra a sessão nesta pasta: o `.mcp.json` registra o servidor e o `CLAUDE.md` carrega as instruções do `AGENTS.md`. No Codex, execute `REPARAR_CODEX_MCP.bat` depois de atualizar.
 
 Limites: as arestas são palpites por regra sobre o texto do jogo, não mecânica confirmada nem pontuação de poder; quem valida número é o PoB. Uniques e mods de item ainda não entram no mapa. Não há comparação entre patches (NEW/CHANGED), loops nem calibração contra builds conhecidas.
+
+## Terminal na página (Claude Code / Codex)
+
+O botão **Terminal** no topo abre o Claude Code ou o Codex rodando na pasta do projeto, dentro da própria página, com a conta que cada um já tem no CLI (sem chave de API). É o terminal de verdade: `/mcp`, aprovações de tools e `Esc` funcionam como no terminal; feche o painel pelo ×.
+
+Requisitos: o CLI instalado (`winget install Anthropic.ClaudeCode` ou `npm install -g @openai/codex`) e, no Windows, `pip install pywinpty`. Só os dois CLIs podem ser abertos, sempre na pasta do projeto; o WebSocket exige um token gerado a cada inicialização e a origem da própria página. xterm.js (MIT) está em `web/vendor/`.

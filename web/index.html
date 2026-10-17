@@ -4,11 +4,12 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PoE2 · Synergy Finder</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script><link rel="stylesheet" href="/tree-sim.css"><script src="/tree-sim.js" defer></script><script src="/workbench.js" defer></script>
 <link rel="stylesheet" href="/workbench.css">
+<link rel="stylesheet" href="/vendor/xterm.css"><link rel="stylesheet" href="/terminal.css"><script src="/vendor/xterm.js" defer></script><script src="/vendor/addon-fit.js" defer></script><script src="/terminal.js" defer></script>
 </head>
 <body>
 <header class="topbar">
   <div class="brand"><div class="brandmark" aria-hidden="true">◇</div><div><strong>POE2 <span>SYNERGY FINDER</span></strong><small>DADOS + POB · <span id="appVersion">0.19.4</span></small></div></div>
-  <div class="top-actions"><span class="connection" id="dataLabel">Lendo base local…</span><button id="openBuildLibrary" class="secondary">Builds</button><button id="openCurrentBuild" class="secondary build-button" hidden>Build atual</button><button id="openPob" class="secondary">Importar PoB</button><button id="openCodex" class="secondary">Codex MCP</button><button id="openData" class="secondary">Base de dados</button></div>
+  <div class="top-actions"><span class="connection" id="dataLabel">Lendo base local…</span><button id="openBuildLibrary" class="secondary">Builds</button><button id="openCurrentBuild" class="secondary build-button" hidden>Build atual</button><button id="openPob" class="secondary">Importar PoB</button><button id="openCodex" class="secondary">Codex MCP</button><button id="openTerminal" class="secondary">Terminal</button><button id="openData" class="secondary">Base de dados</button></div>
 </header>
 <div id="toast" role="status" hidden></div>
 <section id="jobPanel" class="job-panel" hidden aria-live="polite">
@@ -154,4 +155,11 @@ Teste no máximo 6 caminhos e explique o trade-off com DPS.</pre>
   </div>
 </dialog>
 
+<dialog id="terminalDialog" class="terminal-dialog" aria-label="Terminal do projeto">
+  <div class="terminal-head"><div><span class="eyebrow">NA PASTA DO PROJETO</span><h2>Terminal</h2></div>
+    <div class="terminal-tabs" role="tablist"><button data-terminal-cli="claude" class="active">Claude Code</button><button data-terminal-cli="codex">Codex</button></div>
+    <button class="close" data-terminal-close aria-label="Fechar">×</button></div>
+  <div id="terminalHost"></div>
+  <div class="terminal-note" id="terminalNote"></div>
+</dialog>
 </body></html>

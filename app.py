@@ -129,7 +129,24 @@ def make_handler(application):
                     kw['include_decorative']=get('include_decorative')=='1'
                     kw['offset']=max(0,int(get('offset','0')));kw['limit']=max(1,min(100,int(get('limit','36'))))
                     return self.json(cat.explore(**kw))
+                if p.path=='/api/terminal/status':
+                    from src import terminal
+                    ok,why=terminal.pty_available()
+                    return self.json({'clis':terminal.available_clis(),'token':terminal.TOKEN,'cwd':str(terminal.PROJECT),'pty_ok':ok,'pty_error':why})
+                if p.path=='/ws/terminal':
+                    from src import terminal
+                    cli=get('cli')
+                    if cli not in terminal.CLIS:raise ValueError('CLI desconhecido.')
+                    allowed={f'http://127.0.0.1:{self.server.server_port}',f'http://localhost:{self.server.server_port}'}
+                    why=terminal.handshake(self,allowed,get('token'))
+                    if why:return self.json({'error':'Terminal recusado: '+why},403)
+                    self.close_connection=True
+                    terminal.serve(self,cli,int(get('rows','30') or 30),int(get('cols','120') or 120))
+                    return
                 routes={'/':('index.html','text/html; charset=utf-8'),'/app.js':('app.js','application/javascript; charset=utf-8'),
+                        '/terminal.js':('terminal.js','application/javascript; charset=utf-8'),'/terminal.css':('terminal.css','text/css; charset=utf-8'),
+                        '/vendor/xterm.js':('vendor/xterm.js','application/javascript; charset=utf-8'),'/vendor/xterm.css':('vendor/xterm.css','text/css; charset=utf-8'),
+                        '/vendor/addon-fit.js':('vendor/addon-fit.js','application/javascript; charset=utf-8'),
                         '/style.css':('style.css','text/css; charset=utf-8'),
                         '/tree-sim.js':('tree-sim.js','application/javascript; charset=utf-8'),
                         '/tree-sim.css':('tree-sim.css','text/css; charset=utf-8'),
@@ -139,7 +156,7 @@ def make_handler(application):
                     name,ctype=routes[p.path];b=(WEB/name).read_bytes()
                     self.send_response(200);self.send_header('Content-Type',ctype);self.send_header('Content-Length',str(len(b)))
                     self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
-                    self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https://image.ggpk.exposed https://web.poecdn.com https://*.poecdn.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+                    self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ws://127.0.0.1:%d ws://localhost:%d; img-src 'self' data: https://image.ggpk.exposed https://web.poecdn.com https://*.poecdn.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"%(self.server.server_port,self.server.server_port))
                     self.end_headers();self.wfile.write(b);return
                 return self.json({'error':'Não encontrado.'},404)
             except ValueError as e:return self.json({'error':str(e)},400)
