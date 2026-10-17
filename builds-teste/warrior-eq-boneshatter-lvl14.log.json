@@ -1,0 +1,129 @@
+{
+ "name": "warrior-eq-boneshatter-lvl14",
+ "class": "Warrior",
+ "level": 14,
+ "log": [
+  {
+   "t": 0.0,
+   "action": "open",
+   "params": {
+    "from": "new",
+    "class": "Warrior",
+    "level": 14,
+    "weapon": "Forge Maul",
+    "name": "warrior-eq-boneshatter-lvl14"
+   }
+  },
+  {
+   "t": 20.9,
+   "action": "add_skill",
+   "params": {
+    "gems": [
+     [
+      "Earthquake",
+      5
+     ]
+    ]
+   }
+  },
+  {
+   "t": 41.6,
+   "action": "add_skill",
+   "params": {
+    "gems": [
+     [
+      "Boneshatter",
+      5
+     ]
+    ]
+   }
+  },
+  {
+   "t": 84.4,
+   "action": "select",
+   "params": {
+    "group": 1,
+    "part": 1
+   }
+  },
+  {
+   "t": 104.9,
+   "action": "select",
+   "params": {
+    "group": 1,
+    "part": 2
+   }
+  },
+  {
+   "t": 126.1,
+   "action": "config",
+   "params": {
+    "values": {
+     "conditionEnemyArmourBroken": true
+    }
+   }
+  },
+  {
+   "t": 146.9,
+   "action": "select",
+   "params": {
+    "group": 1,
+    "part": 1
+   }
+  },
+  {
+   "t": 169.4,
+   "action": "select",
+   "params": {
+    "group": 2
+   }
+  },
+  {
+   "t": 192.0,
+   "action": "select",
+   "params": {
+    "group": 2,
+    "part": 2
+   }
+  },
+  {
+   "t": 213.2,
+   "action": "select",
+   "params": {
+    "group": 1,
+    "part": 2
+   }
+  },
+  {
+   "t": 300.0,
+   "action": "tree_search",
+   "params": {
+    "budget": 10,
+    "metrics": {
+     "aftershock": {
+      "group": 1,
+      "part": 2,
+      "field": "AverageDamage"
+     },
+     "boneshatter": {
+      "group": 2,
+      "part": 1,
+      "field": "AverageDamage"
+     }
+    },
+    "weights": {
+     "aftershock": 1,
+     "boneshatter": 0.5
+    }
+   }
+  },
+  {
+   "t": 344.8,
+   "action": "select",
+   "params": {
+    "group": 1,
+    "part": 2
+   }
+  }
+ ]
+}

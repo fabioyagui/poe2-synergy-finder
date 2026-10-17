@@ -9,3 +9,6 @@ data/
 engine/
 
 *.exe
+
+# Pesquisa pessoal do autor (manuais, prompts, método): fica só na máquina local.
+private/

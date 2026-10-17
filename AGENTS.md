@@ -42,7 +42,7 @@ State which facts came from PoB calculations versus RePoE mechanical evidence. P
 # Instruções do PoE2 Synergy Finder
 
 Quando a tarefa envolver descobrir, criar, comparar ou revisar builds de PoE 2,
-leia PROMPT-CRIADOR-DE-BUILDS-POE2.md nesta pasta e siga seu processo.
+leia `private/PROMPT-CRIADOR-DE-BUILDS-POE2.md` (arquivo local do autor, fora do repositório; se não existir, siga o método do `## Anchor discovery` acima).
 
 Examine as ascendências antes de selecionar a build. Confirme as interações
 na versão atual do jogo e diferencie dados confirmados de hipóteses.
