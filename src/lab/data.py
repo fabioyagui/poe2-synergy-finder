@@ -137,6 +137,66 @@ def skills_by_family() -> dict[str, list[tuple[int, str]]]:
     return {k: sorted(v) for k, v in out.items()}
 
 
+_UNIQUE_META = re.compile(r"^(League|Requires|Implicits|Variant|Source|Limited to|Has Alt Variant|Selected Variant|Sockets|"
+                          r"LevelReq|Radius|Talisman Tier|Upgrade|Drop|Changelog|Elder Item|Shaper Item)\b")
+_UNIQUE_PREFIX = re.compile(r"^(\{[^}]*\})+")
+
+
+def parse_uniques_text(text: str) -> list[dict]:
+    """Blocos [[ ... ]] dos arquivos Data/Uniques do PoB -> {name, base, league, lines}.
+
+    Fica só a variante atual (a última declarada) e o teto da faixa de cada mod.
+    """
+    out = []
+    for block in re.findall(r"\[\[\n(.*?)\n\]\]", text, re.S):
+        raw = [l.rstrip() for l in block.split("\n") if l.strip()]
+        if len(raw) < 2:
+            continue
+        name, rest = raw[0], raw[1:]
+        variants = sum(1 for l in rest if l.startswith("Variant:"))
+        league = next((l.split(":", 1)[1].strip() for l in rest if l.startswith("League:")), "")
+
+        def current(l):
+            tags = re.findall(r"\{(\w+):([^}]*)\}", l)
+            chosen = next((v for k, v in tags if k == "variant"), None)
+            return chosen is None or not variants or str(variants) in [x.strip() for x in chosen.split(",")]
+
+        # A base pode mudar por variante: "{variant:1}Ironclad Vestments" / "{variant:2}Gilded Vest".
+        bases = []
+        for l in rest:
+            clean = _UNIQUE_PREFIX.sub("", l).strip()
+            if _UNIQUE_META.match(clean) or re.search(r"[\d%+]", clean):
+                break
+            bases.append((current(l), clean))
+        base = next((b for ok, b in bases if ok), bases[0][1] if bases else "")
+        body = rest[len(bases):]
+        lines = []
+        for l in body:
+            if not current(l):
+                continue
+            clean = _UNIQUE_PREFIX.sub("", l).strip()
+            if not clean or _UNIQUE_META.match(clean):
+                continue
+            lines.append(max_roll(clean))
+        if lines:
+            out.append({"name": name, "base": base, "league": league, "lines": lines})
+    return out
+
+
+@lru_cache(maxsize=None)
+def load_uniques() -> tuple:
+    """Todos os uniques do PoB (sem os gerados/de corrida da pasta Special)."""
+    folder = pob_data_dir() / "Uniques"
+    out = []
+    for f in sorted(os.listdir(folder)):
+        if f.endswith(".lua"):
+            out.extend(parse_uniques_text((folder / f).read_text(encoding="utf-8")))
+    new = folder / "Special" / "New.lua"
+    if new.exists():
+        out.extend(parse_uniques_text(new.read_text(encoding="utf-8")))
+    return tuple(out)
+
+
 @lru_cache(maxsize=None)
 def quality_effects() -> dict[str, dict]:
     """Por gem: efeito normal e efeito adicional de qualidade (Advanced Thaumaturgy), por 1% de qualidade."""

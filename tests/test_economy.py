@@ -173,5 +173,79 @@ class AxisTests(unittest.TestCase):
         self.assertEqual((row["sinks_dano"], row["sinks_defesa"], row["paga_em"]), (2, 1, ["dano", "defesa"]))
 
 
+UNIQUE_TEXT = '''
+-- Item data (c) Grinding Gear Games
+
+return {
+-- Staff
+[[
+Taryn's Shiver
+Gelid Staff
+League: Dawn of the Hunt
+Requires Level 40
+Variant: Pre 0.4.0
+Variant: Current
+Implicits: 1
+{tags:cold}+(20-30)% to Cold Resistance
+{variant:1}(60-80)% increased Spell Damage
+{variant:2}(80-120)% increased Spell Damage
+{tags:cold}Gain (30-50)% of Damage as Extra Cold Damage
+Consume a Power Charge if able to deal 40% more Damage
+]],[[
+Andvarius
+Gold Ring
+Implicits: 1
+(6-15)% increased Rarity of Items found
++10 to Dexterity
+]],[[
+Voll's Protector
+{variant:1}Ironclad Vestments
+{variant:2}Gilded Vest
+Variant: Pre 0.5.0
+Variant: Current
+Implicits: 0
+25% chance to gain a Power Charge on Critical Hit
+]],
+}
+'''
+
+
+class PobItemRecordTests(unittest.TestCase):
+    def test_unique_text_keeps_current_variant_and_max_roll(self):
+        from src.lab import data
+        parsed = data.parse_uniques_text(UNIQUE_TEXT)
+        self.assertEqual([u["name"] for u in parsed], ["Taryn's Shiver", "Andvarius", "Voll's Protector"])
+        self.assertEqual((parsed[2]["base"], parsed[2]["lines"]), ("Gilded Vest", ["25% chance to gain a Power Charge on Critical Hit"]))
+        taryn = parsed[0]
+        self.assertEqual((taryn["base"], taryn["league"]), ("Gelid Staff", "Dawn of the Hunt"))
+        self.assertEqual(taryn["lines"], ["+30% to Cold Resistance", "120% increased Spell Damage",
+                                          "Gain 50% of Damage as Extra Cold Damage",
+                                          "Consume a Power Charge if able to deal 40% more Damage"])
+        self.assertEqual(parsed[1]["lines"], ["15% increased Rarity of Items found", "+10 to Dexterity"])
+
+    def test_uniques_and_mods_become_records_and_anchors(self):
+        from src.lab import data
+        uniques = data.parse_uniques_text(UNIQUE_TEXT)
+        mods = [
+            {"id": "PowerChargeMax1", "type": "Suffix", "lines": ("+1 to Maximum Power Charges",), "level": 30,
+             "group": "MaxPower", "weights": (("amulet", 1), ("default", 0))},
+            {"id": "Life1", "type": "Prefix", "lines": ("+19 to maximum Life",), "level": 1, "group": "Life",
+             "weights": (("body_armour", 1), ("default", 0))},
+            {"id": "Life2", "type": "Prefix", "lines": ("+29 to maximum Life",), "level": 6, "group": "Life",
+             "weights": (("body_armour", 1), ("default", 0))},
+            {"id": "Unused", "type": "Prefix", "lines": ("nothing",), "level": 1, "group": "X", "weights": (("default", 0),)},
+        ]
+        records = economy.records_from_uniques(uniques) + economy.records_from_mods(mods)
+        self.assertEqual([r["kind"] for r in records], ["UNIQUE", "UNIQUE", "UNIQUE", "MOD", "MOD"])
+        life = next(r for r in records if r["id"] == "mod:Life2")
+        self.assertEqual((life["name"], life["owner"]), ("Prefix: +29 to maximum Life", "body_armour"))
+        m = economy.EconomyMap(records, {}, {"Taryn's Shiver": {"additional": [("x", 1.0)]}})
+        anchors = m.anchors(kinds=["UNIQUE"])["results"]
+        self.assertEqual(anchors[0]["name"], "Taryn's Shiver")
+        self.assertEqual((anchors[0]["score"], anchors[0]["item"], anchors[0]["quality_additional"]), (3.5, "Gelid Staff", ["x 1/1%"]))
+        connectors = m.resource("power charge", verbs=["UNLOCKS"])["by_verb"]["UNLOCKS"]["edges"]
+        self.assertEqual([(c["kind"], c["item"]) for c in connectors], [("MOD", "amulet")])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -289,6 +289,43 @@ def verbs_for(clause: str, start: int, end: int, resource: str) -> list[str]:
 _RECORD_KINDS = {"SKILL", "META", "SUPPORT", "PASSIVE", "NOTABLE", "KEYSTONE", "ASCENDANCY_NODE"}
 
 
+def records_from_uniques(uniques) -> list[dict]:
+    """Uniques do PoB como registros do mapa: são os conectores que o catálogo RePoE não tem."""
+    return [{"id": f'unique:{u["name"]}', "kind": "UNIQUE", "name": u["name"], "owner": u["base"], "ascendancy": "",
+             "tags": [u["league"]] if u.get("league") else [], "lines": list(u["lines"]), "originals": list(u["lines"])}
+            for u in uniques if u.get("lines")]
+
+
+def records_from_mods(mods) -> list[dict]:
+    """Mods de item do PoB, um registro por grupo (o tier mais alto), com as classes de item que o recebem."""
+    best = {}
+    for mod in mods:
+        if mod["group"] not in best or mod["level"] > best[mod["group"]]["level"]:
+            best[mod["group"]] = mod
+    out = []
+    for mod in best.values():
+        slots = [k for k, v in mod["weights"] if v > 0 and k != "default"]
+        if not slots:
+            continue
+        lines = [l.replace("\\n", " ") for l in mod["lines"]]
+        out.append({"id": f'mod:{mod["id"]}', "kind": "MOD", "name": f'{mod["type"]}: {lines[0]}', "owner": ", ".join(slots[:6]),
+                    "ascendancy": "", "tags": slots, "lines": lines, "originals": lines})
+    return out
+
+
+def pob_records() -> tuple[list[dict], dict]:
+    """Registros extras lidos do PoB instalado; vazio (com o motivo) quando ele não está configurado."""
+    try:
+        from src.lab import data
+        uniques, mods, quality = data.load_uniques(), data.load_mods(), data.quality_effects()
+    except Exception as exc:
+        return [], {"pob_items": f"indisponível: {exc}"}
+    records = records_from_uniques(uniques) + records_from_mods(mods)
+    info = {"pob_items": {"uniques": len(uniques), "mod_groups": sum(1 for r in records if r["kind"] == "MOD"),
+                          "quality_effects": sum(1 for q in quality.values() if q["additional"])}}
+    return records, info
+
+
 def record_from_entity(entity: dict) -> dict | None:
     """Reduz uma entidade do catálogo a nome + linhas de texto únicas."""
     if entity.get("kind") not in _RECORD_KINDS:
@@ -346,9 +383,10 @@ def edges_for(record: dict) -> list[dict]:
 
 
 class EconomyMap:
-    def __init__(self, records: list[dict], meta: dict | None = None):
+    def __init__(self, records: list[dict], meta: dict | None = None, quality: dict | None = None):
         self.records = records
         self.meta = meta or {}
+        self.quality = quality or {}  # gem -> efeitos de qualidade (normal e adicional), do PoB
         self.edges = []
         for index, record in enumerate(records):
             for edge in edges_for(record):
@@ -392,6 +430,12 @@ class EconomyMap:
                "name": r["name"], "kind": r["kind"], "id": r["id"]}
         if r["ascendancy"]:
             out["ascendancy"] = r["ascendancy"]
+        if r["kind"] in ("UNIQUE", "MOD"):
+            out["item"] = r["owner"]
+        q = self.quality.get(r["name"])
+        if q and q.get("additional"):
+            # O que a qualidade passa a fazer com Advanced Thaumaturgy (por 1% de qualidade).
+            out["quality_additional"] = [f"{stat} {value:g}/1%" for stat, value in q["additional"]]
         return out
 
     def _pass(self, e: dict, kinds: set[str] | None, ascendancy: str) -> bool:
@@ -548,6 +592,14 @@ def current_map() -> EconomyMap:
             entities = [json.loads(row["payload"]) for row in c.execute("SELECT payload FROM entities")]
         info = {key: {k: value.get(k) for k in ("source", "repoe_version", "imported_at")}
                 for key, value in meta.items() if isinstance(value, dict)}
-        built = EconomyMap.from_entities(entities, info)
+        extra, extra_info = pob_records()
+        info.update(extra_info)
+        records = [r for r in (record_from_entity(e) for e in entities) if r] + extra
+        try:
+            from src.lab import data
+            quality = data.quality_effects()
+        except Exception:
+            quality = {}
+        built = EconomyMap(records, info, quality)
         _cached = (stamp, built)
         return built

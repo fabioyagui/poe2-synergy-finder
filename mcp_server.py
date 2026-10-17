@@ -740,7 +740,7 @@ TOOLS = {
             "type": "object",
             "properties": {
                 "resource": {"type": "string", "description": "Opcional: limita a um recurso (ex.: power charge, freeze, rage)."},
-                "kinds": {"type": "array", "items": {"type": "string"}, "description": "SKILL, SUPPORT, PASSIVE, NOTABLE, KEYSTONE, ASCENDANCY_NODE, META."},
+                "kinds": {"type": "array", "items": {"type": "string"}, "description": "SKILL, SUPPORT, PASSIVE, NOTABLE, KEYSTONE, ASCENDANCY_NODE, META, UNIQUE (uniques do PoB), MOD (mods de item do PoB)."},
                 "ascendancy": {"type": "string", "description": "Esconde nós de outras ascendências."},
                 "include_plain_reads": {"type": "boolean", "default": False},
                 "include_universal": {"type": "boolean", "default": False},
