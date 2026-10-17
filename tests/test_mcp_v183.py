@@ -22,7 +22,7 @@ class Mcp183Tests(unittest.TestCase):
     def test_tools_list_exact_2025_shape(self):
         r=mcp_server.dispatch({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}})
         self.assertEqual(set(r["result"]),{"tools"})
-        self.assertEqual(len(r["result"]["tools"]),14)
+        self.assertEqual(len(r["result"]["tools"]),15)
 
     def test_no_2026_result_type(self):
         r=mcp_server.dispatch({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}})

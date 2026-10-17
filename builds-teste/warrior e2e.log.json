@@ -1,0 +1,63 @@
+{
+ "name": "warrior e2e",
+ "class": "Warrior",
+ "level": 14,
+ "log": [
+  {
+   "t": 0.0,
+   "action": "open",
+   "params": {
+    "from": "new",
+    "class": "Warrior",
+    "level": 14,
+    "weapon": "Forge Maul",
+    "name": "warrior e2e"
+   }
+  },
+  {
+   "t": 0.1,
+   "action": "add_skill",
+   "params": {
+    "gems": [
+     [
+      "Earthquake",
+      5
+     ]
+    ]
+   }
+  },
+  {
+   "t": 0.1,
+   "action": "add_skill",
+   "params": {
+    "gems": [
+     [
+      "Boneshatter",
+      5
+     ],
+     [
+      "Armour Break I",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "t": 0.3,
+   "action": "select",
+   "params": {
+    "group": 1,
+    "part": 2
+   }
+  },
+  {
+   "t": 0.4,
+   "action": "config",
+   "params": {
+    "values": {
+     "conditionEnemyArmourBroken": true
+    }
+   }
+  }
+ ]
+}

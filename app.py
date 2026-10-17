@@ -158,6 +158,9 @@ def make_handler(application):
                 body=json.loads(self.rfile.read(size) or b'{}')
                 if not isinstance(body,dict):raise ValueError('Pedido inválido.')
                 path=urlparse(self.path).path
+                if path.startswith('/api/lab/'):
+                    from src.lab import service as lab_service
+                    return self.json(lab_service.handle(path[len('/api/lab/'):],body))
                 if path=='/api/import':return self.json(application.jobs.start(body.get('kind'),body.get('folder','')),202)
                 if path=='/api/workbench/visual':return self.json(workbench.visual_context())
                 if path=='/api/workbench/calcs':return self.json(workbench.calcs(body))

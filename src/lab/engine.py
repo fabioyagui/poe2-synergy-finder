@@ -30,6 +30,8 @@ def with_stat_set(xml: str, index: int, skill_id: str | None = None) -> str:
 
     O bridge não expõe essa escolha, então ela é feita no XML antes de recarregar.
     """
+    # Uma escolha anterior deixa <Gem ...><StatSetIndex/>...</Gem>; volta a gem ao formato fechado antes de trocar.
+    xml = re.sub(r"(<Gem\b[^>]*?)>\s*(?:<StatSet(?:Calcs)?Index\b[^>]*/>\s*)*</Gem>", r"\1/>", xml)
     pattern = r'(<Gem [^>]*skillId="' + re.escape(skill_id) + r'"[^>]*?)/>' if skill_id else r"(<Gem [^>]*?)/>"
 
     def add(m):
@@ -40,6 +42,16 @@ def with_stat_set(xml: str, index: int, skill_id: str | None = None) -> str:
     out = re.sub(pattern, add, xml, count=1)
     if out == xml:
         raise ValueError("gem não encontrada no XML para fixar o conjunto de stats")
+    return out
+
+
+def xml_groups(xml: str) -> list[dict]:
+    """Grupos de skill do XML, na ordem do PoB: [{index, gems:[nome], skill_id}]."""
+    out = []
+    for i, block in enumerate(re.findall(r"<Skill\b[^>]*>(.*?)</Skill>", xml, re.S), 1):
+        gems = re.findall(r'<Gem\b[^>]*nameSpec="([^"]*)"', block)
+        skill_id = re.search(r'<Gem\b[^>]*skillId="([^"]+)"', block)
+        out.append({"index": i, "gems": gems, "skill_id": skill_id.group(1) if skill_id else None})
     return out
 
 
@@ -111,6 +123,18 @@ class Lab:
         if part is not None:
             sel["skillPart"] = part
         self.req("set_main_selection", sel)
+
+    def select_part(self, group: int, part: int, active: int = 1):
+        """Seleciona um grupo e força a parte (conjunto de stats) da skill ativa dele.
+
+        O bridge não expõe a parte; ela é fixada no XML e a build é recarregada.
+        """
+        xml = self.export_xml()
+        groups = xml_groups(xml)
+        if not 1 <= group <= len(groups) or not groups[group - 1]["skill_id"]:
+            raise ValueError(f"grupo {group} não existe ou não tem skill")
+        self.load_xml(with_stat_set(xml, part, groups[group - 1]["skill_id"]), "lab")
+        self.select(group, active)
 
     # ---------- leitura ----------
     def stats(self, fields=None) -> dict:

@@ -15,7 +15,7 @@ def walk(v):
 class Mcp184Tests(unittest.TestCase):
     def test_nine_tools_have_codex_safe_schemas(self):
         tools=mcp_server._tool_list()
-        self.assertEqual(len(tools),14)
+        self.assertEqual(len(tools),15)
         for tool in tools:
             schema=tool["inputSchema"]
             self.assertEqual(schema["type"],"object")

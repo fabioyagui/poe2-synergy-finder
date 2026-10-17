@@ -579,6 +579,18 @@ def tool_verify_anchor(args: dict) -> dict:
     return get("/api/lab/verify-anchor?" + urllib.parse.urlencode(params))
 
 
+LAB_ACTIONS = {"open", "status", "close", "add_skill", "equip", "config", "config_options", "allocate", "select",
+               "stats", "tree_search", "gear_search", "export"}
+
+
+def tool_lab(args: dict) -> dict:
+    action = str(args.get("action") or "").strip()
+    if action not in LAB_ACTIONS:
+        raise FinderError(f"action inválida: {action!r}. Use uma de: {', '.join(sorted(LAB_ACTIONS))}.")
+    params = args.get("params")
+    return post("/api/lab/" + action, params if isinstance(params, dict) else {})
+
+
 def tool_inspect_entity(args: dict) -> dict:
     eid = str(args.get("id") or "").strip()
     if not eid:
@@ -793,6 +805,30 @@ TOOLS = {
             "additionalProperties": False,
         },
         "call": tool_verify_anchor,
+    },
+    "lab": {
+        "description": (
+            "Sessão de laboratório no PoB: uma build de trabalho num motor separado da build atual, montada e medida passo a passo. "
+            "Ações (params entre chaves): "
+            "open {from:'new'|'current', class, ascendancy?, level, weapon?, name?} · "
+            "add_skill {gems:[[nome, nível, qualidade?],...]} (a primeira gem é a skill ativa; devolve o índice do grupo) · "
+            "equip {slot, base} ou {slot, text} · config {values:{usePowerCharges:true, enemyLevel:14, ...}} · config_options {} · "
+            "allocate {add:[ids]} | {remove:[ids]} | {nodes:[ids]} (ids de search_passives) · "
+            "select {group, part?} (part = conjunto de stats da skill, ex. projéteis do Falling Thunder = 2) · stats {} · "
+            "tree_search {budget, metrics:{nome:{group, field, part?}}, weights:{nome:peso}} · "
+            "gear_search {weapon_file:'staff.lua', weapon_tag:'warstaff', armour_tags?, metrics, weights, level?} · "
+            "export {name?, to_pob?:true} grava XML, código do PoB e o log das ações em builds-teste/ · close {}. "
+            "Números são do PoB nas condições configuradas, não desempenho no jogo."),
+        "schema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "description": "open, status, close, add_skill, equip, config, config_options, allocate, select, stats, tree_search, gear_search, export"},
+                "params": {"type": "object", "description": "Parâmetros da ação (ver descrição)."},
+            },
+            "required": ["action"],
+            "additionalProperties": False,
+        },
+        "call": tool_lab,
     },
 }
 

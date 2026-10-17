@@ -6,7 +6,7 @@ O Finder expõe **9 ferramentas locais** ao Codex por um servidor MCP stdio. Nen
 
 A partir da v0.19.3 o Codex usa **um único servidor**:
 
-`synergy-build-engine` → 14 tools
+`synergy-build-engine` → 15 tools
 
 O arquivo MCP é copiado para um caminho estável em:
 
@@ -23,7 +23,7 @@ Isso é intencional: o Codex registra caminhos absolutos. Nas versões anteriore
 
 Esperado:
 
-`synergy-build-engine: connected (14 tools)`
+`synergy-build-engine: connected (15 tools)`
 
 As entradas antigas `synergy-build`, `synergy-calcs`, `synergy-passives`, `synergy-tree-*`, `synergy-catalog`, `synergy-synergies` e `synergy-inspect` são removidas automaticamente.
 

@@ -47,7 +47,7 @@ for %%N in (
  synergy-test-09-inspect_entity
 ) do codex mcp remove %%N >nul 2>nul
 
-rem Um unico servidor agora expoe as 14 tools. O caminho fica fora da pasta do projeto,
+rem Um unico servidor agora expoe as 15 tools. O caminho fica fora da pasta do projeto,
 rem portanto mover/renomear o Finder nao quebra o Codex MCP novamente.
 codex mcp add synergy-build-engine -- "!PYEXE!" "!MCPROOT!\mcp_server.py"
 if errorlevel 1 (echo Falha ao registrar synergy-build-engine.& pause& exit /b 1)
@@ -57,7 +57,7 @@ echo MCP instalado em caminho estavel:
 echo !MCPROOT!\mcp_server.py
 echo.
 echo Esperado no /mcp:
-echo   synergy-build-engine: connected (14 tools)
+echo   synergy-build-engine: connected (15 tools)
 echo.
 echo As entradas antigas synergy-build, synergy-calcs, etc. foram removidas.
 echo Feche COMPLETAMENTE o Codex e abra novamente antes de rodar /mcp.

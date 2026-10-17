@@ -6,5 +6,5 @@ class SingleToolModeTests(unittest.TestCase):
         self.assertEqual([x['name'] for x in mcp_server._tool_list()],['get_calcs'])
     def test_all_tools(self):
         mcp_server.ACTIVE_TOOL=None
-        self.assertEqual(len(mcp_server._tool_list()),14)
+        self.assertEqual(len(mcp_server._tool_list()),15)
 if __name__=='__main__': unittest.main()
