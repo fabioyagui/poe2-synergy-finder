@@ -11,6 +11,10 @@ FIELDS = ["TotalDPS", "CombinedDPS", "AverageDamage", "AverageHit", "Speed", "Hi
           "FrenzyCharges", "RemovableFrenzyCharges", "ProjectileCount", "AreaOfEffectRadiusMetres",
           "TotalDot", "IgniteDPS", "BleedDPS", "PoisonDPS", "WithPoisonDPS", "WithBleedDPS", "WithIgniteDPS"]
 DEFENCE_FIELDS = ["TotalEHP", "EnergyShield", "Evasion", "Armour", "FireResist", "ColdResist", "LightningResist", "ChaosResist"]
+# Saída do minion/companion da skill selecionada (mainOutput.Minion no PoB, a mesma da aba Calcs para minions).
+MINION_FIELDS = ["TotalDPS", "CombinedDPS", "AverageDamage", "AverageHit", "Speed", "HitChance", "CritChance",
+                 "TotalDot", "IgniteDPS", "BleedDPS", "PoisonDPS", "Life", "EnergyShield", "Armour", "Evasion",
+                 "FireResist", "ColdResist", "LightningResist", "ChaosResist"]
 
 # Nível de gem liberado por nível de personagem (levelRequirement das gems no PoB).
 _GEM_LEVEL_REQ = [0, 3, 6, 10, 14, 18, 22, 26, 31, 36, 41, 46, 52, 58, 64, 66, 72, 78, 84, 90]
@@ -137,9 +141,15 @@ class Lab:
         self.select(group, active)
 
     # ---------- leitura ----------
-    def stats(self, fields=None) -> dict:
-        out = self.req("get_stats", {"fields": list(fields or FIELDS)})["stats"]
+    def stats(self, fields=None, minion: bool = False) -> dict:
+        """Saída do jogador; com minion=True, também "minion": escalares do minion da skill selecionada, ou None."""
+        wanted = list(fields or FIELDS)
+        out = self.req("get_stats", {"fields": wanted + ["Minion"] if minion else wanted})["stats"]
         out.pop("_meta", None)
+        if minion:
+            raw = out.pop("Minion", None)
+            out["minion"] = ({k: v for k, v in raw.items() if isinstance(v, (int, float, str))}
+                             if isinstance(raw, dict) and raw else None)
         return out
 
     def load_xml(self, xml: str, name: str = "lab"):
@@ -152,6 +162,10 @@ class Lab:
         """Nós com distância de caminho, alocação e ascendência (extensão SynergyWorkbench)."""
         return self.req("sf_workbench_visual", timeout=120)["result"]
 
-    def plan(self, node_id: int) -> dict:
-        """Caminho normal até um nó, calculado pelo PoB (extensão SynergyTree)."""
-        return self.req("sf_tree_plan", {"node_id": node_id})["result"]
+    def plan(self, node_id: int, allow_sockets: bool = False) -> dict:
+        """Caminho normal até um nó, calculado pelo PoB (extensão SynergyTree).
+
+        allow_sockets=True aceita sockets de joia vazios no meio do caminho (custam um ponto cada).
+        """
+        params = {"node_id": node_id, "allow_sockets": True} if allow_sockets else {"node_id": node_id}
+        return self.req("sf_tree_plan", params)["result"]

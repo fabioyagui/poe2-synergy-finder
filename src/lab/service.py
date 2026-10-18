@@ -21,7 +21,7 @@ from pathlib import Path
 
 from src import pob_engine
 from src.lab import bench, data, gear, tree
-from src.lab.engine import DEFENCE_FIELDS, FIELDS, Lab, gem_level, normal, xml_groups
+from src.lab.engine import DEFENCE_FIELDS, FIELDS, MINION_FIELDS, Lab, gem_level, normal, xml_groups
 
 _lock = threading.RLock()
 _session: dict | None = None
@@ -107,13 +107,22 @@ def _current() -> dict:
     return _session
 
 
-def _compact(stats: dict) -> dict:
+def _compact(stats: dict, keys=COMPACT) -> dict:
     out = {}
-    for k in COMPACT:
+    for k in keys:
         v = stats.get(k)
         if isinstance(v, bool) or v in (None, 0, 0.0):
             continue
         out[k] = round(v, 1) if isinstance(v, float) else v
+    return out
+
+
+def _stats(lab: Lab, fields=None) -> dict:
+    """Stats compactas do jogador; com minion na skill selecionada, também {"minion": {...}}."""
+    raw = lab.stats(fields or FIELDS + DEFENCE_FIELDS, minion=True)
+    out = {"stats": _compact(raw)}
+    if raw.get("minion"):
+        out["minion"] = _compact(raw["minion"], MINION_FIELDS)
     return out
 
 
@@ -127,17 +136,21 @@ def _summary(s: dict) -> dict:
     lab: Lab = s["lab"]
     xml = lab.export_xml()
     return {"name": s["name"], "class": s["class"], "ascendancy": s["ascendancy"], "level": s["level"],
-            "groups": xml_groups(xml), "selected": s.get("selected"), "stats": _compact(lab.stats(FIELDS + DEFENCE_FIELDS)),
-            "actions": len(s["log"])}
+            "groups": xml_groups(xml), "selected": s.get("selected"), **_stats(lab), "actions": len(s["log"])}
 
 
 def _measure_from(spec: dict):
-    """metrics: {"nome": {"group": 1, "part": 2, "field": "TotalDPS"}} -> função que lê tudo de uma vez."""
+    """metrics: {"nome": {"group": 1, "part": 2, "field": "TotalDPS", "actor": "minion"}} -> função que lê tudo de uma vez.
+
+    actor "minion" lê a saída do minion/companion da skill do grupo; sem minion, a métrica vale 0.
+    """
     if not isinstance(spec, dict) or not spec:
         raise ValueError('metrics deve ser {"nome": {"group": 1, "field": "TotalDPS", "part": opcional}}')
     for k, v in spec.items():
         if not isinstance(v, dict) or "field" not in v:
             raise ValueError(f'metrics[{k!r}] precisa de "field"')
+        if v.get("actor", "player") not in ("player", "minion"):
+            raise ValueError(f'metrics[{k!r}].actor deve ser "player" ou "minion"')
 
     def measure():
         s = _current()
@@ -152,7 +165,10 @@ def _measure_from(spec: dict):
                 else:
                     lab.select(group)
                 s["selected_key"] = key
-            out[name] = lab.stats(FIELDS + DEFENCE_FIELDS).get(m["field"]) or 0
+            if m.get("actor") == "minion":
+                out[name] = (lab.stats(FIELDS, minion=True)["minion"] or {}).get(m["field"]) or 0
+            else:
+                out[name] = lab.stats(FIELDS + DEFENCE_FIELDS).get(m["field"]) or 0
         return out
     return measure
 
@@ -252,7 +268,7 @@ def act_add_skill(p: dict) -> dict:
     s["lab"].select(index)
     s["selected"], s["selected_key"] = {"group": index, "part": None}, (index, None)
     _log("add_skill", p)
-    return {"group": index, "groups": xml_groups(s["lab"].export_xml()), "stats": _compact(s["lab"].stats())}
+    return {"group": index, "groups": xml_groups(s["lab"].export_xml()), **_stats(s["lab"], FIELDS)}
 
 
 def act_equip(p: dict) -> dict:
@@ -267,7 +283,7 @@ def act_equip(p: dict) -> dict:
         raise ValueError('informe text (texto do item como o PoB importa) ou base (nome da base branca)')
     s["lab"].equip(slot, str(text))
     _log("equip", p)
-    return {"slot": slot, "item": str(text).splitlines()[1:3], "stats": _compact(s["lab"].stats(FIELDS + DEFENCE_FIELDS))}
+    return {"slot": slot, "item": str(text).splitlines()[1:3], **_stats(s["lab"])}
 
 
 def act_config(p: dict) -> dict:
@@ -280,7 +296,7 @@ def act_config(p: dict) -> dict:
             raise ValueError(f"valor de {k} deve ser booleano, número ou texto")
     s["lab"].config(values)
     _log("config", p)
-    return {"applied": values, "stats": _compact(s["lab"].stats(FIELDS + DEFENCE_FIELDS))}
+    return {"applied": values, **_stats(s["lab"])}
 
 
 def act_config_options(p: dict) -> dict:
@@ -289,24 +305,51 @@ def act_config_options(p: dict) -> dict:
 
 
 def act_allocate(p: dict) -> dict:
+    """add/remove (ou nodes, o conjunto completo). Por padrão, add aloca também o caminho até o nó.
+
+    O PoB poda nós sem ligação com o início da classe ou da ascendência: um nó isolado não entra na conta.
+    Com path=false, add só põe o próprio nó; o que o PoB podar volta em "dropped".
+    """
     s = _current()
     lab: Lab = s["lab"]
     ctx = lab.tree_context()
-    current = {n["id"] for n in ctx["nodes"] if n["allocated"] and not n.get("ascendancy")}
+    known = {n["id"]: n for n in ctx["nodes"]}
+    current = {n["id"] for n in ctx["nodes"] if n["allocated"]}
+    adds = [] if p.get("nodes") is not None else [int(x) for x in p.get("add") or []]
     if p.get("nodes") is not None:
         wanted = {int(x) for x in p["nodes"]}
     else:
-        wanted = (current | {int(x) for x in p.get("add") or []}) - {int(x) for x in p.get("remove") or []}
-    known = {n["id"]: n for n in ctx["nodes"]}
-    unknown = sorted(x for x in wanted if x not in known)
+        wanted = current - {int(x) for x in p.get("remove") or []}
+    unknown = sorted(x for x in wanted | set(adds) if x not in known)
     if unknown:
         raise ValueError(f"nós desconhecidos: {unknown[:10]}")
+    with_path = p.get("path", True) not in (False, "false", 0)
     lab.set_nodes(s["class"], wanted, s["ascendancy"] or None)
+    paths, errors = {}, {}
+    for nid in adds:
+        if nid in wanted:
+            continue
+        path = [nid]
+        if with_path:
+            try:
+                path = lab.plan(nid, allow_sockets=True)["add_ids"] or [nid]
+            except pob_engine.EngineError as exc:
+                errors[known[nid]["name"]] = str(exc).split(": ", 1)[-1]
+        wanted |= set(path)
+        lab.set_nodes(s["class"], wanted, s["ascendancy"] or None)
+        paths[known[nid]["name"]] = len(path)
     s["selected_key"] = None
     _log("allocate", p)
-    names = [known[x]["name"] for x in sorted(wanted - current)]
-    return {"allocated": len(wanted), "added": names[:40], "removed": len(current - wanted),
-            "stats": _compact(lab.stats(FIELDS + DEFENCE_FIELDS))}
+    after = {n["id"] for n in lab.tree_context()["nodes"] if n["allocated"]}
+    names = [known[x]["name"] for x in sorted(after - current)]
+    out = {"allocated": len(after), "added": names[:40], "removed": len(current - after), "path_points": paths}
+    dropped = sorted(wanted - after)
+    if dropped:
+        out["dropped"] = [{"id": x, "name": known[x]["name"]} for x in dropped[:20]]
+        out["dropped_reason"] = "o PoB removeu nós sem ligação com o início da classe/ascendência; eles não contam nas stats"
+    if errors:
+        out["path_errors"] = errors
+    return {**out, **_stats(lab)}
 
 
 def act_select(p: dict) -> dict:
@@ -318,14 +361,19 @@ def act_select(p: dict) -> dict:
         s["lab"].select(group, active)
     s["selected"], s["selected_key"] = {"group": group, "part": int(part) if part else None}, (group, int(part) if part else None)
     _log("select", p)
-    return {"selected": s["selected"], "stats": _compact(s["lab"].stats())}
+    return {"selected": s["selected"], **_stats(s["lab"], FIELDS)}
 
 
 def act_stats(p: dict) -> dict:
     s = _current()
     fields = p.get("fields")
-    stats = s["lab"].stats(fields if isinstance(fields, list) and fields else FIELDS + DEFENCE_FIELDS)
-    return {"stats": _compact(stats) if not fields else {k: stats.get(k) for k in fields}}
+    if not (isinstance(fields, list) and fields):
+        return _stats(s["lab"])
+    stats = s["lab"].stats(fields, minion=True)
+    out = {"stats": {k: stats.get(k) for k in fields}}
+    if stats["minion"]:
+        out["minion"] = {k: stats["minion"].get(k) for k in fields}
+    return out
 
 
 def act_tree_search(p: dict) -> dict:

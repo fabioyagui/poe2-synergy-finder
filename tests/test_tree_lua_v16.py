@@ -80,6 +80,10 @@ class LuaExecutionTests(unittest.TestCase):
         self.execute("for _,id in ipairs({1,5,7,8,999}) do assert(not pcall(M.plan,{node_id=id})) end")
     def test_path_through_weapon_set_rejected(self):
         self.execute("nodes[4].path={nodes[5],nodes[4]}; nodes[5].alloc=false; spec.allocNodes[5]=nil; assert(not pcall(M.plan,{node_id=4}))")
+    def test_socket_in_path_needs_allow_sockets(self):
+        self.execute("nodes[4].path={nodes[8],nodes[4]};assert(not pcall(M.plan,{node_id=4}));"
+                     "local p=M.plan({node_id=4,allow_sockets=true});assert(#p.add_ids==2);"
+                     "assert(not pcall(M.plan,{node_id=8,allow_sockets=true}))")
     def test_ascendancy_separate_cost(self):
         self.execute("local p=M.plan({node_id=6}); assert(p.ordinary_delta==0 and p.ascendancy_delta==1)")
     def test_native_override_and_frozen_baseline(self):

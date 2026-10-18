@@ -151,6 +151,8 @@ function M.plan(params)
     local n = spec.nodes[id]
     assert(n, 'Caminho contem um ponto desconhecido.')
     local block = block_reason(spec, n)
+    -- allow_sockets: um socket de joia vazio no meio do caminho e alocado como ponto comum (laboratorio).
+    if block and params.allow_sockets == true and n.type == 'Socket' and n.id ~= node.id then block = nil end
     assert(not block, 'Caminho/dependencia inclui ponto especial: '..(n.name or tostring(id))..'. '..(block or ''))
     rows[#rows+1] = node_record(spec, n)
     if n.ascendancyName then asc = asc + 1 else normal = normal + 1 end
