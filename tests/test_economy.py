@@ -247,5 +247,223 @@ class PobItemRecordTests(unittest.TestCase):
         self.assertEqual([(c["kind"], c["item"]) for c in connectors], [("MOD", "amulet")])
 
 
+AUGMENT_TEXT = """
+return {
+	["Lesser Iron Rune"] = {
+		["weapon"] = {
+				type = "Rune",
+				"14% increased Physical Damage",
+				"Bonded: 20% increased effect of Fully Broken Armour",
+				statOrder = { 830, 5236 },
+				isSocketBound = false,
+				rank = { 0 },
+		},
+		["armour"] = {
+				type = "Rune",
+				"14% increased Armour, Evasion and Energy Shield",
+				statOrder = { 854 },
+				isSocketBound = false,
+				rank = { 0 },
+		},
+	},
+	["Tzamoto's Soul Core of Ferocity"] = {
+		["helmet"] = {
+				type = "SoulCore",
+				"+(2-4) to Maximum Rage",
+				statOrder = { 1 },
+				isSocketBound = false,
+				rank = { 50 },
+		},
+	},
+	["Idol of Alira"] = {
+		["gloves"] = {
+				type = "Idol",
+				"Bonded: +1 to Maximum Power Charges",
+				statOrder = { 2 },
+				isSocketBound = false,
+				rank = { 50 },
+		},
+	},
+	["Amanamu's Gaze"] = {
+		["helmet"] = {
+				type = "AbyssalEye",
+				"+2 to Armour per 1 Spirit",
+				statOrder = { 3 },
+				isSocketBound = false,
+				rank = { 50 },
+		},
+	},
+}
+"""
+
+TIMELESS_TEXT = """
+return {
+	["additions"] = {
+		{
+			["dn"] = "Fire Damage",
+			["id"] = "vaal_small_fire_damage",
+			["sd"] = {
+				"(7-12)% increased Fire Damage",
+			},
+		},
+	},
+	["nodes"] = {
+		{
+			["dn"] = "Black Scythe Training",
+			["id"] = "kalguur_keystone_1",
+			["ks"] = true,
+			["not"] = false,
+			["sd"] = {
+				"Gain no inherent bonus from Strength",
+				"1% increased Energy Shield per 2 Strength",
+			},
+		},
+		{
+			["dn"] = "Buried Animosity",
+			["id"] = "abyss_notable_3",
+			["ks"] = false,
+			["not"] = true,
+			["sd"] = {
+				"+1 to Maximum Rage per 50 Tribute",
+			},
+		},
+	},
+}
+"""
+
+JEWEL_UNIQUE_TEXT = """
+return {
+[[
+Controlled Metamorphosis
+Diamond
+Limited to: 1
+Radius: Variable
+Passives in Radius can be Allocated without being connected to your tree
+-(20-5)% to all Elemental Resistances
+]],[[
+Heroic Tragedy
+Timeless Jewel
+Limited to: 1 Historic
+Radius: Very Large
+Passives in radius are Conquered by the Kalguur
+Historic
+]],
+}
+"""
+
+JEWEL_MODS = [
+    {"id": "JewelRage", "type": "Prefix", "lines": ("+2 to Maximum Rage",), "level": 1, "group": "MaxRage",
+     "weights": (("strjewel", 1), ("jewel", 0))},
+    {"id": "JewelRadiusRage", "type": "Prefix", "lines": ("+1 to Maximum Rage",), "level": 1, "group": "MaxRage",
+     "weights": (("str_radius_jewel", 1), ("jewel", 0))},
+    {"id": "JewelRadiusLarge", "type": "Prefix", "lines": ("Upgrades Radius to Large",), "level": 1, "group": "Larger",
+     "weights": (("radius_jewel", 1), ("jewel", 0))},
+    {"id": "JewelDisabled", "type": "Suffix", "lines": ("nothing",), "level": 1, "group": "Off",
+     "weights": (("intjewel", 0), ("jewel", 0))},
+]
+
+
+class JewelAndAugmentRecordTests(unittest.TestCase):
+    def test_augments_are_parsed_per_slot_with_bonded_lines_kept(self):
+        from src.lab import data
+        parsed = data.parse_augments_text(AUGMENT_TEXT)
+        self.assertEqual([(a["name"], a["type"]) for a in parsed],
+                         [("Lesser Iron Rune", "Rune"), ("Tzamoto's Soul Core of Ferocity", "SoulCore"),
+                          ("Idol of Alira", "Idol"), ("Amanamu's Gaze", "AbyssalEye")])
+        self.assertEqual(parsed[0]["slots"]["weapon"],
+                         ["14% increased Physical Damage", "Bonded: 20% increased effect of Fully Broken Armour"])
+        self.assertEqual(parsed[1]["slots"]["helmet"], ["+4 to Maximum Rage"])  # teto da faixa
+
+    def test_augment_records_have_kind_socket_note_and_degrau(self):
+        from src.lab import data
+        records = economy.records_from_augments(data.parse_augments_text(AUGMENT_TEXT))
+        self.assertEqual([r["kind"] for r in records], ["RUNE", "SOUL_CORE", "IDOL", "AUGMENT"])
+        rune = records[0]
+        self.assertEqual((rune["owner"], rune["tags"], rune["source"]),
+                         ("weapon, armour", ["weapon", "armour"], "ModRunes.lua"))
+        self.assertEqual(rune["note"], economy.SOCKET_NOTE)
+        self.assertEqual([r["degrau"] for r in records], [1, 3, 3, 4])
+        self.assertEqual(records[3]["tags"][0], "AbyssalEye")
+
+    def test_timeless_passives_are_one_record_per_passive_and_only_for_jewels_in_the_game(self):
+        from src.lab import data
+        passives = data.parse_timeless_text(TIMELESS_TEXT)
+        self.assertEqual([(p["legion"], p["kind"]) for p in passives],
+                         [("vaal", "small"), ("kalguur", "keystone"), ("abyss", "notable")])
+        records = economy.records_from_timeless(passives)
+        self.assertEqual([r["name"] for r in records],
+                         ["Black Scythe Training (Heroic Tragedy)", "Buried Animosity (Undying Hate)"])
+        self.assertEqual((records[0]["kind"], records[0]["owner"], records[0]["radius"], records[0]["degrau"]),
+                         ("TIMELESS", "Heroic Tragedy", "Very Large", 4))
+        self.assertEqual(records[0]["note"], economy.RADIUS_NOTE)
+
+    def test_jewel_mods_split_rare_and_time_lost_even_in_the_same_group(self):
+        records = economy.records_from_jewel_mods(JEWEL_MODS)
+        self.assertEqual([(r["kind"], r["name"]) for r in records],
+                         [("JEWEL_MOD", "Prefix: +2 to Maximum Rage"),
+                          ("TIME_LOST", "Time-Lost Prefix in Radius: +1 to Maximum Rage"),
+                          ("TIME_LOST", "Time-Lost Prefix in Radius: Upgrades Radius to Large")])
+        self.assertEqual(records[0]["owner"], "Ruby")
+        self.assertNotIn("radius", records[0])
+        self.assertEqual((records[1]["owner"], records[1]["degrau"]), ("Time-Lost Ruby", 4))
+        self.assertTrue(records[1]["radius"])
+        self.assertEqual(records[1]["note"], economy.RADIUS_NOTE)
+
+    def test_unique_jewels_become_jewel_unique_with_radius(self):
+        from src.lab import data
+        uniques = data.parse_uniques_text(JEWEL_UNIQUE_TEXT)
+        self.assertEqual(uniques[1]["lines"], ["Passives in radius are Conquered by the Kalguur"])
+        records = economy.records_from_uniques(uniques)
+        self.assertEqual([(r["kind"], r["radius"]) for r in records],
+                         [("JEWEL_UNIQUE", "Variable"), ("JEWEL_UNIQUE", "Very Large")])
+        plain = economy.records_from_uniques([{"name": "Andvarius", "base": "Gold Ring", "lines": ["+10 to Dexterity"]}])
+        self.assertEqual((plain[0]["kind"], plain[0]["degrau"]), ("UNIQUE", 4))
+        self.assertNotIn("radius", plain[0])
+
+    def test_item_text_without_markup_still_finds_tagged_resources(self):
+        record = economy.records_from_augments(
+            [{"name": "X", "type": "SoulCore", "slots": {"helmet": ["+4 to Maximum Rage"]}}])[0]
+        self.assertIn(("rage", "UNLOCKS"), {(e["resource"], e["verb"]) for e in economy.edges_for(record)})
+        convert = economy.records_from_augments(
+            [{"name": "Y", "type": "SoulCore", "slots": {"weapon": ["Convert 20% of Requirements to Strength",
+                                                                    "+40% of Armour also applies to Cold Damage"]}}])[0]
+        verbs = {(e["resource"], e["verb"]) for e in economy.edges_for(convert)}
+        self.assertIn(("strength", "CONVERTS"), verbs)
+        self.assertIn(("armour", "CONVERTS"), verbs)
+        # Texto do catálogo (com marcação) não muda: "rage" sem tag continua fora.
+        gem = economy.record_from_entity(entity("Gem", "SKILL", "+4 to Maximum Rage"))
+        self.assertEqual(economy.edges_for(gem), [])
+
+    def test_kind_groups_filter_anchors_and_lookup(self):
+        from src.lab import data
+        records = (economy.records_from_augments(data.parse_augments_text(AUGMENT_TEXT))
+                   + economy.records_from_jewel_mods(JEWEL_MODS)
+                   + economy.records_from_uniques(data.parse_uniques_text(JEWEL_UNIQUE_TEXT))
+                   + economy.records_from_timeless(data.parse_timeless_text(TIMELESS_TEXT))
+                   + [economy.record_from_entity(entity(
+                       "Idolatry", "ASCENDANCY_NODE",
+                       "Companions deal 10% increased damage per [Idol] in your Equipment", ascendancy="Spirit Walker"))])
+        m = economy.EconomyMap(records, {"source": "fixture"})
+        self.assertEqual(economy.expand_kinds(["jewels", "RUNE"]), economy.JEWEL_KINDS | {"RUNE"})
+        anchors = m.anchors(kinds=["AUGMENTS"])["results"]
+        self.assertEqual({(a["kind"], a["resource"], a["verb"]) for a in anchors},
+                         {("SOUL_CORE", "rage", "UNLOCKS"), ("IDOL", "power charge", "UNLOCKS")})
+        self.assertEqual(anchors[0]["note"], economy.SOCKET_NOTE)
+        jewels = m.anchors(kinds=["JEWELS"])["results"]
+        self.assertEqual({a["kind"] for a in jewels}, {"JEWEL_MOD", "TIME_LOST", "JEWEL_UNIQUE", "TIMELESS"})
+        time_lost = next(a for a in jewels if a["kind"] == "TIME_LOST")
+        self.assertEqual((time_lost["note"], time_lost["degrau"]), (economy.RADIUS_NOTE, 4))
+        metamorphosis = next(a for a in jewels if a["name"] == "Controlled Metamorphosis")
+        self.assertEqual((metamorphosis["resource"], metamorphosis["verb"]), ("passive", "UNLOCKS"))
+        idol = m.lookup("Idol")
+        self.assertEqual({(r["kind"], r["name"]) for r in idol["results"]},
+                         {("IDOL", "Idol of Alira"), ("ASCENDANCY_NODE", "Idolatry")})
+        self.assertEqual(next(r for r in idol["results"] if r["kind"] == "IDOL")["item"], "gloves")
+        radius = m.lookup("Radius", kinds=["JEWELS"])
+        self.assertEqual({r["kind"] for r in radius["results"]}, {"TIME_LOST", "JEWEL_UNIQUE"})
+        self.assertEqual(m.status()["records_by_kind"]["TIME_LOST"], 2)
+        self.assertIn("JEWELS", m.status()["kind_groups"])
+
+
 if __name__ == "__main__":
     unittest.main()

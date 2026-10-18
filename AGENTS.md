@@ -27,7 +27,7 @@ Use this before picking a skill, when the question is "where is the power" rathe
 4. `economy_resource` on the anchor's resource with `verbs=["PRODUCES","UNLOCKS"]`: connectors. Prefer producers in different slots (skill, support, passive, ascendancy).
 5. `economy_resource` with `verbs=["AMPLIFIES","LIMITS"]`: scaling and conflicts. `economy_lookup` for the full text of any piece.
 6. Only then build it and validate with `get_calcs` / `compare_tree_change`.
-Edges are rule-based guesses over game text, not confirmed mechanics or a power score. Quote the exact text and mark unconfirmed interactions [VERIFY]. Uniques and item mods are not in the map yet.
+Edges are rule-based guesses over game text, not confirmed mechanics or a power score. Quote the exact text and mark unconfirmed interactions [VERIFY]. Items from PoB are in the map: uniques, item mods, jewels (`kinds=["JEWELS"]`: JEWEL_MOD, TIME_LOST, JEWEL_UNIQUE, TIMELESS) and item augments (`kinds=["AUGMENTS"]`: RUNE, SOUL_CORE, IDOL); each row carries `degrau` (estimated acquisition tier), `radius` (a radius jewel's value depends on the nodes around the socket, never a fixed number) and `note` (Runes, Soul Cores and Idols share one item socket). Cluster jewels and the PoE1 Timeless legions have no 0.5 data and are not imported.
 
 ## Lab: build and measure in PoB (MCP `lab` tool, or Python)
 The Finder's current build is read-only for the agent. To build something new, open a lab session: a second PoB engine, separate from the user's build.

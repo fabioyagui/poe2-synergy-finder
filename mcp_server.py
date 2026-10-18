@@ -752,7 +752,7 @@ TOOLS = {
             "type": "object",
             "properties": {
                 "resource": {"type": "string", "description": "Opcional: limita a um recurso (ex.: power charge, freeze, rage)."},
-                "kinds": {"type": "array", "items": {"type": "string"}, "description": "SKILL, SUPPORT, PASSIVE, NOTABLE, KEYSTONE, ASCENDANCY_NODE, META, UNIQUE (uniques do PoB), MOD (mods de item do PoB)."},
+                "kinds": {"type": "array", "items": {"type": "string"}, "description": "SKILL, SUPPORT, PASSIVE, NOTABLE, KEYSTONE, ASCENDANCY_NODE, META, UNIQUE, MOD, JEWEL_MOD (afixo de joia rara), TIME_LOST (afixo de raio), JEWEL_UNIQUE, TIMELESS, RUNE, SOUL_CORE, IDOL, AUGMENT. Atalhos: JEWELS, AUGMENTS, ITEMS, GEMS, TREE. Itens trazem degrau de obtenção, raio (valor depende dos nós ao redor) e aviso de socket exclusivo."},
                 "ascendancy": {"type": "string", "description": "Esconde nós de outras ascendências."},
                 "include_plain_reads": {"type": "boolean", "default": False},
                 "include_universal": {"type": "boolean", "default": False},
@@ -769,7 +769,7 @@ TOOLS = {
             "properties": {
                 "resource": {"type": "string"},
                 "verbs": {"type": "array", "items": {"type": "string"}},
-                "kinds": {"type": "array", "items": {"type": "string"}},
+                "kinds": {"type": "array", "items": {"type": "string"}, "description": "Mesmos kinds e atalhos de economy_anchors (ex.: [JEWELS], [AUGMENTS], [RUNE, SOUL_CORE])."},
                 "ascendancy": {"type": "string"},
                 "limit_per_verb": {"type": "integer", "minimum": 1, "maximum": 40, "default": 25},
             },
@@ -779,12 +779,12 @@ TOOLS = {
         "call": tool_economy_resource,
     },
     "economy_lookup": {
-        "description": "Texto completo de skills, supports e passivas cujo nome ou texto contém a busca, com os recursos e verbos detectados em cada um.",
+        "description": "Texto completo de skills, supports, passivas, uniques, afixos de joia, Timeless, Runes, Soul Cores e Idols cujo nome ou texto contém a busca, com os recursos e verbos detectados em cada um.",
         "schema": {
             "type": "object",
             "properties": {
                 "query": {"type": "string"},
-                "kinds": {"type": "array", "items": {"type": "string"}},
+                "kinds": {"type": "array", "items": {"type": "string"}, "description": "Mesmos kinds e atalhos de economy_anchors (ex.: [JEWELS], [AUGMENTS])."},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 30, "default": 30},
             },
             "required": ["query"],

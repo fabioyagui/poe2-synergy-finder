@@ -76,8 +76,12 @@ def weapon_for(family: str, level: int) -> str | None:
 
 
 @lru_cache(maxsize=None)
-def load_mods() -> tuple:
-    text = (pob_data_dir() / "ModItem.lua").read_text(encoding="utf-8")
+def load_mods(file: str = "ModItem.lua") -> tuple:
+    """Afixos de um arquivo Data/Mod*.lua do PoB (ModItem.lua por padrão; ModJewel.lua para joias)."""
+    return parse_mods_text((pob_data_dir() / file).read_text(encoding="utf-8"))
+
+
+def parse_mods_text(text: str) -> tuple:
     mods = []
     pattern = (r'\n\t\["([^"]+)"\] = \{ type = "(Prefix|Suffix)", affix = "[^"]*", (.*?), statOrder = .*?level = (\d+), '
                r'group = "([^"]+)", weightKey = \{(.*?)\}, weightVal = \{(.*?)\}')
@@ -137,8 +141,9 @@ def skills_by_family() -> dict[str, list[tuple[int, str]]]:
     return {k: sorted(v) for k, v in out.items()}
 
 
-_UNIQUE_META = re.compile(r"^(League|Requires|Implicits|Variant|Source|Limited to|Has Alt Variant|Selected Variant|Sockets|"
-                          r"LevelReq|Radius|Talisman Tier|Upgrade|Drop|Changelog|Elder Item|Shaper Item)\b")
+_UNIQUE_META = re.compile(r"^(League|Requires|Implicits|Variant|Source|Limited to|Has Alt Variant|Selected Variant|"
+                          r"Selected Alt Variant|Sockets|LevelReq|Radius|Talisman Tier|Upgrade|Drop|Changelog|Elder Item|"
+                          r"Shaper Item|Historic$|Corrupted$)\b")
 _UNIQUE_PREFIX = re.compile(r"^(\{[^}]*\})+")
 
 
@@ -155,6 +160,7 @@ def parse_uniques_text(text: str) -> list[dict]:
         name, rest = raw[0], raw[1:]
         variants = sum(1 for l in rest if l.startswith("Variant:"))
         league = next((l.split(":", 1)[1].strip() for l in rest if l.startswith("League:")), "")
+        radius = next((l.split(":", 1)[1].strip() for l in rest if l.startswith("Radius:")), "")
 
         def current(l):
             tags = re.findall(r"\{(\w+):([^}]*)\}", l)
@@ -179,7 +185,7 @@ def parse_uniques_text(text: str) -> list[dict]:
                 continue
             lines.append(max_roll(clean))
         if lines:
-            out.append({"name": name, "base": base, "league": league, "lines": lines})
+            out.append({"name": name, "base": base, "league": league, "lines": lines, "radius": radius})
     return out
 
 
@@ -227,3 +233,52 @@ def quality_effects() -> dict[str, dict]:
                 "additional": [(s, float(v)) for s, v in re.findall(r'\{ "([^"]+)", ([\d.\-]+)', a.group(1))] if a else [],
             }
     return out
+
+
+# ---------- augments de item (Runes, Soul Cores, Idols) e Timeless ----------
+def parse_augments_text(text: str) -> list[dict]:
+    """Data/ModRunes.lua -> [{name, type, slots: {slot: [linhas]}}]. Linhas "Bonded:" ficam como estão."""
+    out = []
+    for name, body in re.findall(r'\n\t\["([^"]+)"\] = \{(.*?)\n\t\},', text, re.S):
+        slots, kind = {}, ""
+        for slot, inner in re.findall(r'\n\t\t\["([^"]+)"\] = \{(.*?)\n\t\t\},', body, re.S):
+            t = re.search(r'type = "(\w+)"', inner)
+            kind = kind or (t.group(1) if t else "")
+            lines = [max_roll(l) for l in re.findall(r'\n\t{4}"((?:[^"\\]|\\.)*)",', inner)]
+            if lines:
+                slots[slot] = lines
+        if slots:
+            out.append({"name": name, "type": kind, "slots": slots})
+    return out
+
+
+@lru_cache(maxsize=None)
+def load_augments() -> tuple:
+    return tuple(parse_augments_text((pob_data_dir() / "ModRunes.lua").read_text(encoding="utf-8")))
+
+
+def parse_timeless_text(text: str) -> list[dict]:
+    """TimelessJewelData/LegionPassives.lua -> passivas concedidas: {id, legion, name, lines, kind}.
+
+    `kind` é keystone, notable ou small. Uma entrada por passiva concedida, não por seed.
+    """
+    out = []
+    for body in re.findall(r"\n\t\t\{\n(.*?)\n\t\t\},", text, re.S):
+        pid = re.search(r'\["id"\] = "([^"]+)"', body)
+        name = re.search(r'\["dn"\] = "([^"]+)"', body)
+        sd = re.search(r'\["sd"\] = \{(.*?)\n\t\t\t\}', body, re.S)
+        if not (pid and name and sd):
+            continue
+        lines = [max_roll(l) for l in re.findall(r'"((?:[^"\\]|\\.)*)"', sd.group(1))]
+        if not lines:
+            continue
+        legion = re.match(r"[a-z]+", pid.group(1)).group(0)
+        kind = "keystone" if '["ks"] = true' in body else "notable" if '["not"] = true' in body else "small"
+        out.append({"id": pid.group(1), "legion": legion, "name": name.group(1), "lines": lines, "kind": kind})
+    return out
+
+
+@lru_cache(maxsize=None)
+def load_timeless() -> tuple:
+    path = pob_data_dir() / "TimelessJewelData" / "LegionPassives.lua"
+    return tuple(parse_timeless_text(path.read_text(encoding="utf-8")))

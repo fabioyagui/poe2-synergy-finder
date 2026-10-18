@@ -34,6 +34,9 @@ METHOD = "\n".join([
     "2. Conectores: tudo que PRODUCES esse recurso, em slots diferentes (skill, support, passiva, ascendência). Use economy_resource com verbs=[PRODUCES, UNLOCKS].",
     "3. Escala: o que AMPLIFIES o recurso. Âncora em recurso sem produtores nem amplificadores é armadilha.",
     "4. Conflitos: LIMITS e textos com 'cannot', 'instead', 'no longer'. Leia o texto inteiro com economy_lookup.",
+    "5. Itens: kinds=[JEWELS] (afixos de joia rara, Time-Lost, joias unique, Timeless) e kinds=[AUGMENTS] (Runes, Soul Cores, Idols). "
+    "Joia de raio não tem valor fixo (depende dos nós no raio); Rune, Soul Core e Idol disputam o mesmo socket de item. "
+    "Cada registro traz o degrau de obtenção estimado (1 garantido ... 4 específico).",
     "Toda aresta é palpite por regra sobre texto do jogo. Cite o texto exato e valide no PoB antes de concluir.",
 ])
 
@@ -119,6 +122,9 @@ PLAIN_RESOURCES = {
     "area": ("stat", r"area of effect"),
     "duration": ("stat", r"duration"),
     "kill": ("event", r"on kill|when you kill|kill(?:s|ed|ing)? an? enemy|killing blow"),
+    # joias: o que uma joia de raio/unique altera ou destrava
+    "passive": ("stat", r"passive skills?|passives(?: in radius)?|notable passive skills?|small passive skills?"),
+    "jewel": ("entity", r"(?:corrupted |magic |socketed |sinister )*jewels?(?: sockets?)?"),
     "hit": ("event", r"on hit|when you hit|per enemy hit|enem(?:y|ies) hit"),
 }
 # Tão comuns que só fazem barulho no ranking de âncoras.
@@ -152,12 +158,40 @@ def parse_markup(original: str) -> tuple[str, list[tuple[str, int, int]]]:
     return "".join(out), spans
 
 
-def mentions(clause: str, spans: list[tuple[str, int, int]]) -> list[tuple[str, int, int]]:
-    """(recurso, início, fim) sem sobreposição; termos sem tag ganham das tags genéricas."""
+# Texto de item do PoB não tem marcação [Tag]: os recursos com tag são procurados pelo nome, com flexões.
+_IRREGULAR = {
+    "freeze": r"freez(?:e|es|ed|ing)|frozen", "bleed": r"bleed(?:s|ing)?|bleeds", "ignite": r"ignit(?:e|es|ed|ing)",
+    "armour break": r"armour break\w*|(?:fully )?broken armour", "shapeshift": r"shapeshift\w*",
+    "critical hit": r"critical hits?|critical (?:strike|hit) chance", "minion death": r"minions? (?:die|dies|died)",
+    "oil": r"oil(?:ed)?(?: ground)?", "energy": r"energy(?! shield)",
+}
+_SKIP_FALLBACK = set(PLAIN_RESOURCES) | {"ally", "hit", "kill", "orb", "plant", "trap", "chain", "block"}
+
+
+def _fallback_patterns():
+    out = []
+    for name in sorted({name for name, _cat in TAG_RESOURCES.values()} - _SKIP_FALLBACK):
+        pat = _IRREGULAR.get(name) or (re.escape(name) + r"(?:s|es|ed|d|ing)?")
+        out.append((name, re.compile(r"(?<![\w'])(?:" + pat + r")(?![\w])", re.I)))
+    return out
+
+
+_FALLBACK = _fallback_patterns()
+
+
+def mentions(clause: str, spans: list[tuple[str, int, int]], plain_tags: bool = False) -> list[tuple[str, int, int]]:
+    """(recurso, início, fim) sem sobreposição; termos sem tag ganham das tags genéricas.
+
+    `plain_tags=True` (texto de item, sem marcação) procura também os recursos com tag pelo nome.
+    """
     found = []
     for name, _cat, rx in _PLAIN:
         for m in rx.finditer(clause):
             found.append((0, -(m.end() - m.start()), name, m.start(), m.end()))
+    if plain_tags:
+        for name, rx in _FALLBACK:
+            for m in rx.finditer(clause):
+                found.append((1, -(m.end() - m.start()), name, m.start(), m.end()))
     for tag, s, e in spans:
         hit = TAG_RESOURCES.get(tag)
         if hit:
@@ -182,6 +216,8 @@ _RULES = [
         r"(?:do(?:es)? not|without|cannot) (?:consum|remov|expend|los)\w*[^.]{0,25}{R}",
         r"no {R} cost", r"{R}[^.]{0,15}costs? no",
         r"chance to not (?:consume|remove|lose)[^.]{0,25}{R}", r"{R}[^.]{0,25}no maximum",
+        # joias que removem uma restrição da árvore
+        r"{R}[^.]{0,30}can be allocated", r"can allocate[^.]{0,20}{R}",
     ]),
     ("LIMITS", [
         r"cannot (?:\w+ ){0,3}{R}", r"{R}[^.]{0,30}cannot", r"(?:lose|loses) all {R}",
@@ -202,6 +238,8 @@ _RULES = [
         r"{R}[^.]{0,30}converted to", r"converted to[^.]{0,20}{R}",
         r"{R}[^.]{0,25}instead of", r"instead of[^.]{0,25}{R}",
         r"modifiers to[^.]{0,30}{R}[^.]{0,20}also apply", r"also appl(?:y|ies) to[^.]{0,30}{R}",
+        r"{R}[^.]{0,30}also appl(?:y|ies) to", r"convert\w*(?: \w+%?){0,6} to (?:\w+ ){0,2}{R}",
+        r"{R}[^.]{0,30}(?:are|is) conquered by",
         r"{R}[^.]{0,20}(?:is|are|counts?) (?:also )?(?:treated|considered|counted) as",
     ]),
     ("READS", [
@@ -287,29 +325,129 @@ def verbs_for(clause: str, start: int, end: int, resource: str) -> list[str]:
 
 # ---------- registros ----------
 _RECORD_KINDS = {"SKILL", "META", "SUPPORT", "PASSIVE", "NOTABLE", "KEYSTONE", "ASCENDANCY_NODE"}
+# Kinds lidos dos itens do PoB (o catálogo RePoE não tem texto de item).
+JEWEL_KINDS = {"JEWEL_MOD", "TIME_LOST", "JEWEL_UNIQUE", "TIMELESS"}
+AUGMENT_KINDS = {"RUNE", "SOUL_CORE", "IDOL", "AUGMENT"}
+ITEM_KINDS = {"UNIQUE", "MOD"} | JEWEL_KINDS | AUGMENT_KINDS
+# Atalhos aceitos no filtro `kinds` das ferramentas: JEWELS = só joias, AUGMENTS = só augments de item.
+KIND_GROUPS = {
+    "JEWELS": JEWEL_KINDS, "AUGMENTS": AUGMENT_KINDS, "ITEMS": ITEM_KINDS,
+    "GEMS": {"SKILL", "META", "SUPPORT"}, "TREE": {"PASSIVE", "NOTABLE", "KEYSTONE", "ASCENDANCY_NODE"},
+}
+# Degrau de obtenção (método do autor): 1 garantido, 2 craft simples, 3 roll alto/drop limitado, 4 específico.
+# Estimativa por tipo de item, não por item: um Rune raro ou um Soul Core comum fogem da tabela.
+DEGRAU = {"MOD": 2, "JEWEL_MOD": 2, "RUNE": 1, "SOUL_CORE": 3, "IDOL": 3, "AUGMENT": 4,
+          "TIME_LOST": 4, "UNIQUE": 4, "JEWEL_UNIQUE": 4, "TIMELESS": 4}
+RADIUS_NOTE = ("O valor depende dos nós dentro do raio no socket escolhido; não é um número fixo. "
+               "Medir no PoB com a joia encaixada.")
+SOCKET_NOTE = "Ocupa um socket de item: Runes, Soul Cores e Idols se excluem no mesmo socket."
+JEWEL_BASES = {"Ruby", "Emerald", "Sapphire", "Diamond", "Timeless Jewel"}
+_JEWEL_BASE_OF = {"strjewel": "Ruby", "dexjewel": "Emerald", "intjewel": "Sapphire",
+                  "str_radius_jewel": "Time-Lost Ruby", "dex_radius_jewel": "Time-Lost Emerald",
+                  "int_radius_jewel": "Time-Lost Sapphire", "radius_jewel": "Time-Lost (qualquer)"}
+# Legião -> joia Timeless que existe na 0.5. As outras legiões do arquivo são herança do PoE1.
+TIMELESS_JEWELS = {"kalguur": ("Heroic Tragedy", "Kalguur"), "abyss": ("Undying Hate", "Abyssals")}
+
+
+def _item_record(rid: str, kind: str, name: str, owner: str, lines, tags, source: str, radius: str = "") -> dict:
+    lines = [str(l).replace("\\n", " ") for l in lines]
+    out = {"id": rid, "kind": kind, "name": name, "owner": owner, "ascendancy": "", "tags": list(tags),
+           "lines": lines, "originals": lines, "source": source, "degrau": DEGRAU.get(kind)}
+    if radius:
+        out["radius"] = radius
+        out["note"] = RADIUS_NOTE
+    elif kind in AUGMENT_KINDS:
+        out["note"] = SOCKET_NOTE
+    return out
 
 
 def records_from_uniques(uniques) -> list[dict]:
-    """Uniques do PoB como registros do mapa: são os conectores que o catálogo RePoE não tem."""
-    return [{"id": f'unique:{u["name"]}', "kind": "UNIQUE", "name": u["name"], "owner": u["base"], "ascendancy": "",
-             "tags": [u["league"]] if u.get("league") else [], "lines": list(u["lines"]), "originals": list(u["lines"])}
-            for u in uniques if u.get("lines")]
+    """Uniques do PoB como registros do mapa: são os conectores que o catálogo RePoE não tem.
+
+    Joias unique (bases Ruby/Emerald/Sapphire/Diamond/Timeless/Time-Lost) viram JEWEL_UNIQUE, com o raio.
+    """
+    out = []
+    for u in uniques:
+        if not u.get("lines"):
+            continue
+        base = u.get("base") or ""
+        jewel = base in JEWEL_BASES or base.startswith("Time-Lost")
+        kind = "JEWEL_UNIQUE" if jewel else "UNIQUE"
+        tags = [u["league"]] if u.get("league") else []
+        out.append(_item_record(f'unique:{u["name"]}', kind, u["name"], base, u["lines"], tags,
+                                "Uniques/jewel.lua" if jewel else "Uniques/*.lua",
+                                radius=(u.get("radius") or "") if jewel else ""))
+    return out
 
 
-def records_from_mods(mods) -> list[dict]:
-    """Mods de item do PoB, um registro por grupo (o tier mais alto), com as classes de item que o recebem."""
+def _best_by_group(mods):
     best = {}
     for mod in mods:
         if mod["group"] not in best or mod["level"] > best[mod["group"]]["level"]:
             best[mod["group"]] = mod
+    return best.values()
+
+
+def records_from_mods(mods) -> list[dict]:
+    """Mods de item do PoB, um registro por grupo (o tier mais alto), com as classes de item que o recebem."""
     out = []
-    for mod in best.values():
+    for mod in _best_by_group(mods):
         slots = [k for k, v in mod["weights"] if v > 0 and k != "default"]
         if not slots:
             continue
         lines = [l.replace("\\n", " ") for l in mod["lines"]]
-        out.append({"id": f'mod:{mod["id"]}', "kind": "MOD", "name": f'{mod["type"]}: {lines[0]}', "owner": ", ".join(slots[:6]),
-                    "ascendancy": "", "tags": slots, "lines": lines, "originals": lines})
+        out.append(_item_record(f'mod:{mod["id"]}', "MOD", f'{mod["type"]}: {lines[0]}', ", ".join(slots[:6]),
+                                lines, slots, "ModItem.lua"))
+    return out
+
+
+def records_from_jewel_mods(mods) -> list[dict]:
+    """Afixos de ModJewel.lua: JEWEL_MOD (joia rara) ou TIME_LOST (afixo de raio), por grupo."""
+    out, seen = [], set()
+    for mod in mods:
+        keys = [k for k, v in mod["weights"] if v > 0 and k != "jewel"]
+        if not keys:
+            continue
+        radius = any(k.endswith("radius_jewel") for k in keys)
+        # Afixo de raio e afixo de joia rara dividem o grupo no PoB: um registro de cada.
+        if (mod["group"], radius) in seen:
+            continue
+        seen.add((mod["group"], radius))
+        bases = [_JEWEL_BASE_OF.get(k, k) for k in keys]
+        lines = [l.replace("\\n", " ") for l in mod["lines"]]
+        # Nos Time-Lost o afixo vale para as passivas pequenas dentro do raio; o PoB guarda só o stat.
+        name = f'Time-Lost {mod["type"]} in Radius: {lines[0]}' if radius else f'{mod["type"]}: {lines[0]}'
+        out.append(_item_record(f'jewelmod:{mod["id"]}', "TIME_LOST" if radius else "JEWEL_MOD", name,
+                                ", ".join(bases), lines, bases, "ModJewel.lua",
+                                radius="Small na base; Medium/Large por afixo" if radius else ""))
+    return out
+
+
+def records_from_augments(augments) -> list[dict]:
+    """Runes, Soul Cores, Idols (e outros augments de ModRunes.lua): um registro por item, slots nas tags."""
+    kinds = {"Rune": "RUNE", "SoulCore": "SOUL_CORE", "Idol": "IDOL"}
+    out = []
+    for a in augments:
+        lines = list(dict.fromkeys(l for slot_lines in a["slots"].values() for l in slot_lines))
+        if not lines:
+            continue
+        slots = list(a["slots"])
+        kind = kinds.get(a["type"], "AUGMENT")
+        tags = ([a["type"]] if kind == "AUGMENT" else []) + slots
+        out.append(_item_record(f'augment:{a["name"]}', kind, a["name"], ", ".join(slots[:6]), lines, tags, "ModRunes.lua"))
+    return out
+
+
+def records_from_timeless(passives, jewels=None) -> list[dict]:
+    """Passivas concedidas pelas joias Timeless (por tipo de passiva, não por seed), só das legiões com joia na 0.5."""
+    jewels = TIMELESS_JEWELS if jewels is None else jewels
+    out = []
+    for p in passives:
+        if p["legion"] not in jewels or not p.get("lines"):
+            continue
+        jewel, legion = jewels[p["legion"]]
+        out.append(_item_record(f'timeless:{p["id"]}', "TIMELESS", f'{p["name"]} ({jewel})', jewel, p["lines"],
+                                [legion, p["kind"]], "TimelessJewelData/LegionPassives.lua", radius="Very Large"))
     return out
 
 
@@ -321,9 +459,40 @@ def pob_records() -> tuple[list[dict], dict]:
     except Exception as exc:
         return [], {"pob_items": f"indisponível: {exc}"}
     records = records_from_uniques(uniques) + records_from_mods(mods)
-    info = {"pob_items": {"uniques": len(uniques), "mod_groups": sum(1 for r in records if r["kind"] == "MOD"),
-                          "quality_effects": sum(1 for q in quality.values() if q["additional"])}}
+    lacunas = []
+    for label, loader, builder in (("joias (ModJewel.lua)", lambda: data.load_mods("ModJewel.lua"), records_from_jewel_mods),
+                                   ("augments (ModRunes.lua)", data.load_augments, records_from_augments),
+                                   ("Timeless (LegionPassives.lua)", data.load_timeless, records_from_timeless)):
+        try:
+            loaded = loader()
+            records += builder(loaded)
+            if builder is records_from_timeless:
+                leftover = sorted({p["legion"] for p in loaded if p["legion"] not in TIMELESS_JEWELS})
+                if leftover:
+                    lacunas.append(f"Timeless: legiões sem joia na 0.5 ignoradas ({', '.join(leftover)}); seeds não enumeradas.")
+        except Exception as exc:
+            lacunas.append(f"{label} indisponível: {exc}")
+    lacunas.append("Cluster jewels: sem base nem unique nos dados da 0.5; não importados.")
+    lacunas.append("Joias de raio e Timeless: o efeito depende dos nós no raio; só o texto do afixo entra no mapa.")
+    counts = Counter(r["kind"] for r in records)
+    info = {"pob_items": {"uniques": len(uniques), "mod_groups": counts["MOD"],
+                          "quality_effects": sum(1 for q in quality.values() if q["additional"]),
+                          "by_kind": {k: counts[k] for k in sorted(ITEM_KINDS) if counts[k]},
+                          "lacunas": lacunas}}
     return records, info
+
+
+def expand_kinds(kinds) -> set[str] | None:
+    """Filtro `kinds` com atalhos (JEWELS, AUGMENTS, ITEMS, GEMS, TREE) expandidos; None = sem filtro."""
+    if not kinds:
+        return None
+    out = set()
+    for k in kinds:
+        key = str(k).strip().upper()
+        if not key:
+            continue
+        out |= KIND_GROUPS.get(key, {key})
+    return out or None
 
 
 def record_from_entity(entity: dict) -> dict | None:
@@ -365,7 +534,7 @@ def edges_for(record: dict) -> list[dict]:
     edges = []
     for original in record["originals"]:
         clause, spans = parse_markup(original)
-        found = mentions(clause, spans)
+        found = mentions(clause, spans, plain_tags=record.get("kind") in ITEM_KINDS)
         for resource, s, e in found:
             for verb in verbs_for(clause, s, e, resource) or ["AMBIGUOUS"]:
                 name = f'{resource} ({record["name"]})' if resource in PER_SKILL_RESOURCES else resource
@@ -430,12 +599,21 @@ class EconomyMap:
                "name": r["name"], "kind": r["kind"], "id": r["id"]}
         if r["ascendancy"]:
             out["ascendancy"] = r["ascendancy"]
-        if r["kind"] in ("UNIQUE", "MOD"):
-            out["item"] = r["owner"]
+        self._item_fields(r, out)
         q = self.quality.get(r["name"])
         if q and q.get("additional"):
             # O que a qualidade passa a fazer com Advanced Thaumaturgy (por 1% de qualidade).
             out["quality_additional"] = [f"{stat} {value:g}/1%" for stat, value in q["additional"]]
+        return out
+
+    @staticmethod
+    def _item_fields(r: dict, out: dict) -> dict:
+        """Campos de item: base/slot, degrau de obtenção, raio e aviso (raio ou socket exclusivo)."""
+        if r["kind"] in ITEM_KINDS:
+            out["item"] = r["owner"]
+            for key in ("degrau", "radius", "note", "source"):
+                if r.get(key) is not None:
+                    out[key] = r[key]
         return out
 
     def _pass(self, e: dict, kinds: set[str] | None, ascendancy: str) -> bool:
@@ -461,6 +639,8 @@ class EconomyMap:
         for name, row in sorted(self.resources.items()):
             by_category[row["category"] or "outros"].append(name)
         return {"ok": True, "meta": self.meta, "records": len(self.records), "edges": len(self.edges),
+                "records_by_kind": dict(sorted(Counter(r["kind"] for r in self.records).items())),
+                "kind_groups": {k: sorted(v) for k, v in KIND_GROUPS.items()},
                 "verbs": VERBS, "method": METHOD, "resources_by_category": dict(by_category)}
 
     @staticmethod
@@ -489,7 +669,7 @@ class EconomyMap:
         want = self.resolve(resource) if resource else None
         if resource and not want:
             return {"ok": False, "error": f'Nenhum recurso casa com "{resource}". Chame economy_status para ver a lista.'}
-        kinds = {str(k).upper() for k in kinds} if kinds else None
+        kinds = expand_kinds(kinds)
         cap = max(1, min(int(limit or 40), 200))
         scored = []
         for e in self.edges:
@@ -534,7 +714,7 @@ class EconomyMap:
         if not name:
             return {"ok": False, "error": f'Nenhum recurso casa com "{resource}". Chame economy_status para ver a lista.'}
         wanted = {str(v).upper() for v in verbs} if verbs else None
-        kinds = {str(k).upper() for k in kinds} if kinds else None
+        kinds = expand_kinds(kinds)
         per = max(1, min(int(limit_per_verb or 25), 200))
         groups = defaultdict(list)
         for e in self.edges:
@@ -552,7 +732,7 @@ class EconomyMap:
         q = str(query or "").strip().casefold()
         if not q:
             return {"ok": False, "error": "Informe um texto para buscar."}
-        kinds = {str(k).upper() for k in kinds} if kinds else None
+        kinds = expand_kinds(kinds)
         per_record = defaultdict(list)
         for e in self.edges:
             pair = {"resource": e["resource"], "verb": e["verb"]}
@@ -568,9 +748,10 @@ class EconomyMap:
         hits.sort()
         cap = max(1, min(int(limit or 30), 200))
         return {"ok": True, "query": query, "total": len(hits), "truncated": len(hits) > cap,
-                "results": [{"name": self.records[i]["name"], "kind": self.records[i]["kind"],
-                             "id": self.records[i]["id"], "ascendancy": self.records[i]["ascendancy"] or None,
-                             "text": self.records[i]["lines"], "resources": per_record.get(i, [])}
+                "results": [self._item_fields(self.records[i], {
+                                "name": self.records[i]["name"], "kind": self.records[i]["kind"],
+                                "id": self.records[i]["id"], "ascendancy": self.records[i]["ascendancy"] or None,
+                                "text": self.records[i]["lines"], "resources": per_record.get(i, [])})
                             for _rank, _name, i in hits[:cap]]}
 
 
