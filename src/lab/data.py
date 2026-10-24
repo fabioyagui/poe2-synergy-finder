@@ -41,13 +41,19 @@ def max_roll(text: str) -> str:
 
 
 @lru_cache(maxsize=None)
-def load_bases(file: str) -> tuple:
+def load_bases(file: str, include_league: bool = False) -> tuple:
+    """Bases de Data/Bases/<file>. include_league=True traz também as de liga (`liga`) e as ocultas no PoB
+    (`oculta`: hidden = true), que a campanha não dá; o juiz precisa delas para reconhecer o item e
+    classificá-lo como degrau 4."""
     text = (pob_data_dir() / "Bases" / file).read_text(encoding="utf-8")
     out = []
     for m in re.finditer(r'itemBases\["([^"]+)"\] = \{(.*?)\n\}', text, re.S):
         name, body = m.group(1), m.group(2)
-        if "hidden = true" in body or any(s in name for s in _SKIP_BASES):
+        league = any(s in name for s in _SKIP_BASES)
+        hidden = "hidden = true" in body
+        if (hidden or league) and not include_league:
             continue
+        limit = re.search(r"socketLimit = (\d+)", body)
         tags = set(re.findall(r"(\w+) = true", re.search(r"tags = \{(.*?)\}", body).group(1)))
         lvl = re.search(r"req = \{[^}]*level = (\d+)", body)
         implicit = re.search(r'implicit = "([^"]*)"', body)
@@ -60,8 +66,113 @@ def load_bases(file: str) -> tuple:
             "implicit": max_roll(implicit.group(1)).replace("\\n", "\n") if implicit else "",
             "physical": (int(phys.group(1)), int(phys.group(2))) if phys else None,
             "elemental": bool(re.search(r"(Fire|Cold|Lightning|Chaos)Min", body)),
+            "liga": league, "oculta": hidden, "socket_limit": int(limit.group(1)) if limit else None,
         })
     return tuple(out)
+
+
+@lru_cache(maxsize=None)
+def all_bases() -> dict:
+    """Todas as bases de Data/Bases/*.lua por nome, inclusive as de liga (sem frascos)."""
+    out = {}
+    for f in sorted(os.listdir(pob_data_dir() / "Bases")):
+        if f.endswith(".lua") and f not in ("flask.lua",):
+            for b in load_bases(f, include_league=True):
+                out.setdefault(b["name"], {**b, "file": f})
+    return out
+
+
+_RANGE = re.compile(r"\((-?[\d.]+)-(-?[\d.]+)\)")
+
+
+@lru_cache(maxsize=None)
+def load_affixes() -> tuple:
+    """Prefixos e sufixos de ModItem.lua com as faixas de valor ("(a-b)" preservado), para o juiz.
+
+    Cada mod: {id, type, lines, level (item level mínimo), group, weights, tags}. Mods com peso 0 em toda
+    base (essência, corrupção) ficam de fora: não saem de drop nem de craft comum.
+    """
+    text = (pob_data_dir() / "ModItem.lua").read_text(encoding="utf-8")
+    mods = []
+    for m in re.finditer(r'\n\t\["([^"]+)"\] = \{ type = "(Prefix|Suffix)", affix = "[^"]*", (.*?), statOrder = .*?level = (\d+), '
+                         r'group = "([^"]+)", weightKey = \{(.*?)\}, weightVal = \{(.*?)\}, modTags = \{(.*?)\}', text):
+        weights = tuple(zip(re.findall(r'"([^"]+)"', m.group(6)), [int(x) for x in re.findall(r"-?\d+", m.group(7))]))
+        if not any(v > 0 for _k, v in weights):
+            continue
+        mods.append({"id": m.group(1), "type": m.group(2), "lines": tuple(re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(3))),
+                     "level": int(m.group(4)), "group": m.group(5), "weights": weights,
+                     "tags": frozenset(re.findall(r'"([^"]+)"', m.group(8)))})
+    return tuple(mods)
+
+
+def affix_pool(base: dict) -> list[dict]:
+    """Mods que podem existir na base (qualquer item level): peso > 0 na primeira tag da base que casa."""
+    return [m for m in load_affixes() if applies(m, base["tags"])]
+
+
+@lru_cache(maxsize=None)
+def _gems_by_name() -> dict[str, dict]:
+    """Gems.lua + Skills/*.lua do PoB: nome (casefold) -> {name, effect, lineage, support, levels}.
+
+    levels = {nível da gem: nível de personagem exigido}, do levelRequirement do efeito concedido.
+    """
+    data = pob_data_dir()
+    reqs = {}
+    for f in (data / "Skills").glob("*.lua"):
+        text = f.read_text(encoding="utf-8")
+        for m in re.finditer(r'skills\["([^"]+)"\] = \{(.*?)\n\}', text, re.S):
+            lv = re.search(r"\n\tlevels = \{(.*)", m.group(2), re.S)
+            if lv:
+                table = {int(a): int(b) for a, b in re.findall(r"\[(\d+)\] = \{[^{}]*?levelRequirement = (\d+)", lv.group(1))}
+                if table:
+                    reqs[m.group(1)] = table
+    out = {}
+    text = (data / "Gems.lua").read_text(encoding="utf-8")
+    for body in re.findall(r'\n\t\["Metadata/Items/Gems?/[^"]+"\] = \{(.*?)\n\t\}', text, re.S):
+        name = re.search(r'\n\t\tname = "([^"]+)"', body)
+        effect = re.search(r'grantedEffectId = "([^"]+)"', body)
+        if not (name and effect):
+            continue
+        gem_type = re.search(r'gemType = "([^"]*)"', body)
+        tags = re.search(r"\n\t\ttags = \{(.*?)\n\t\t\}", body, re.S)
+        out.setdefault(name.group(1).casefold(), {
+            "name": name.group(1), "effect": effect.group(1), "lineage": "lineage = true" in body,
+            "support": bool(gem_type and "Support" in gem_type.group(1)), "levels": reqs.get(effect.group(1)) or {},
+            "tags": frozenset(re.findall(r"(\w+) = true", tags.group(1))) if tags else frozenset()})
+    return out
+
+
+@lru_cache(maxsize=None)
+def gem_tiers() -> dict[str, int]:
+    """Tier de cada gem (crafting_level do RePoE, por nome casefold): o nível de gema bruta (uncut) de que ela é
+    cortada. 0 = não sai de gema bruta (concedida por item ou nó, lineage). Vazio sem o catálogo importado."""
+    out = {}
+    try:
+        with storage.connect() as c:
+            for row in c.execute("SELECT source_id, payload FROM raw_records WHERE dataset='gems'"):
+                g = json.loads(row["payload"])
+                name = (g.get("base_item") or {}).get("display_name")
+                if name and isinstance(g.get("crafting_level"), int):
+                    out.setdefault(str(name).casefold(), g["crafting_level"])
+    except Exception:
+        return {}
+    return out
+
+
+def gem_info(name: str) -> dict | None:
+    """Gem do PoB pelo nome (aceita o sufixo " Support"); None se o PoB não a conhece. Traz `tier` do catálogo."""
+    wanted = str(name or "").strip().casefold()
+    table = _gems_by_name()
+    info = table.get(wanted) or table.get(wanted.removesuffix(" support"))
+    if info is None:
+        return None
+    return {**info, "tier": gem_tiers().get(info["name"].casefold())}
+
+
+def gem_levels(name: str) -> dict | None:
+    """Nível de personagem exigido por nível de gem; None fora do PoB (o chamador usa a tabela usual)."""
+    info = gem_info(name)
+    return (info or {}).get("levels") or None
 
 
 def weapon_for(family: str, level: int) -> str | None:

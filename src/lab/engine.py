@@ -20,8 +20,15 @@ MINION_FIELDS = ["TotalDPS", "CombinedDPS", "AverageDamage", "AverageHit", "Spee
 _GEM_LEVEL_REQ = [0, 3, 6, 10, 14, 18, 22, 26, 31, 36, 41, 46, 52, 58, 64, 66, 72, 78, 84, 90]
 
 
-def gem_level(char_level: int) -> int:
-    return max(i + 1 for i, req in enumerate(_GEM_LEVEL_REQ) if req <= char_level)
+def gem_level(char_level: int, levels: dict | None = None) -> int:
+    """Maior nível de gem que o nível de personagem permite; 0 quando nem o nível 1 cabe.
+
+    levels = {nível da gem: nível de personagem exigido} da própria gem (data.gem_levels); sem ela, a tabela usual.
+    """
+    if levels:
+        ok = [int(lvl) for lvl, req in levels.items() if isinstance(req, int) and req <= char_level]
+        return max(ok) if ok else 0
+    return max((i + 1 for i, req in enumerate(_GEM_LEVEL_REQ) if req <= char_level), default=0)
 
 
 def normal(base: str) -> str:
@@ -102,9 +109,16 @@ class Lab:
         if weapon:
             self.equip("Weapon 1", weapon)
 
+    def set_level(self, level: int):
+        self.req("set_level", {"level": int(level)})
+
     def set_nodes(self, class_name: str, nodes, ascendancy: str | None = None):
         class_id, asc_id = self.class_ids(class_name, ascendancy)
         self.req("set_tree", {"classId": class_id, "ascendClassId": asc_id, "nodes": sorted(nodes)})
+
+    def allocated(self) -> set:
+        """Nós alocados como o PoB os tem agora (o PoB poda os desconectados ao aplicar a árvore)."""
+        return {int(n) for n in self.req("get_tree")["tree"]["nodes"]}
 
     def equip(self, slot: str, text: str):
         self.req("add_item_text", {"text": text, "slotName": slot})

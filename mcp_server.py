@@ -580,7 +580,7 @@ def tool_verify_anchor(args: dict) -> dict:
 
 
 LAB_ACTIONS = {"open", "status", "close", "add_skill", "equip", "config", "config_options", "allocate", "select",
-               "stats", "tree_search", "gear_search", "export"}
+               "stats", "tree_search", "gear_search", "export", "stages", "judge"}
 
 
 def tool_lab(args: dict) -> dict:
@@ -589,6 +589,16 @@ def tool_lab(args: dict) -> dict:
         raise FinderError(f"action inválida: {action!r}. Use uma de: {', '.join(sorted(LAB_ACTIONS))}.")
     params = args.get("params")
     return post("/api/lab/" + action, params if isinstance(params, dict) else {})
+
+
+def tool_judge_build(args: dict) -> dict:
+    path = str(args.get("path") or "").strip()
+    if not path:
+        raise FinderError("path obrigatório: pasta de etapas (ex.: spiritwalker-desbalanceada) ou XML do PoB.")
+    params = {"path": path}
+    if args.get("trilha"):
+        params["trilha"] = str(args["trilha"])
+    return post("/api/lab/judge", params)
 
 
 def tool_inspect_entity(args: dict) -> dict:
@@ -819,18 +829,45 @@ TOOLS = {
             "skills com minion/companion devolvem também o bloco minion (DPS de um minion, saída de minion do PoB) · "
             "tree_search {budget, metrics:{nome:{group, field, part?, actor?:'minion'}}, weights:{nome:peso}} · "
             "gear_search {weapon_file:'staff.lua', weapon_tag:'warstaff', armour_tags?, metrics, weights, level?} · "
-            "export {name?, to_pob?:true} grava XML, código do PoB e o log das ações em builds-teste/ · close {}. "
+            "export {name?, to_pob?:true} grava XML, código do PoB e o log das ações em builds-teste/ · "
+            "stages {levels?:[15,30,45,60,75,90], gems?:[[skill, support, [gem, qualidade]...], ...] (padrão: os grupos da sessão, sem os "
+            "concedidos por item/nó), respecs?:[{level, remove:[ids], add:[ids], skills?, gear?, motivo}], gear?:{nível:[{slot, text, degrau}]}, "
+            "config?, name?, trilha?} grava a build por etapas de nível em builds-teste/<nome>/ (L<nível>.xml por etapa, árvore no orçamento "
+            "do nível com os pontos de missão do PoB, gems no nível permitido, inimigo e penalidade da faixa, etapas.md, um arquivo de loadouts "
+            "e o juiz.json; respec = etapa à parte com antes/depois) · judge {path, trilha?} (ver judge_build) · close {}. "
             "Números são do PoB nas condições configuradas, não desempenho no jogo."),
         "schema": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "description": "open, status, close, add_skill, equip, config, config_options, allocate, select, stats, tree_search, gear_search, export"},
+                "action": {"type": "string", "description": "open, status, close, add_skill, equip, config, config_options, allocate, select, stats, tree_search, gear_search, export, stages, judge"},
                 "params": {"type": "object", "description": "Parâmetros da ação (ver descrição)."},
             },
             "required": ["action"],
             "additionalProperties": False,
         },
         "call": tool_lab,
+    },
+    "judge_build": {
+        "description": (
+            "Juiz das builds por etapas (PoE 2): lê cada L<nível>.xml de uma pasta (ou um XML) no PoB headless e devolve aprovada/reprovada "
+            "com motivos. Legalidade: pontos de passiva (nível − 1 + pontos de missão do PoB) e de ascendência (ascensões por nível, "
+            "[VERIFY]), soquete com joia, nível das gems, atributos, nível e item level dos itens, cada mod dentro do tier da base no item "
+            "level, até 3 prefixos/3 sufixos, soquetes de runa da base. Degraus por trilha: supports por skill (campanha 3, starter 4, "
+            "desbalanceada 5), support lineage, uniques e bases de liga ou ocultas no PoB só na desbalanceada. Sustentação: Spirit reservado, "
+            "mana/s da skill principal contra regeneração, maldições contra o limite, resistências e vida+ES mínimas por faixa, config honesta "
+            "(condição ligada precisa de produtor), penalidade de resistência da faixa. Avisa skill concedida pelo segundo conjunto de armas. "
+            "Exige ancora.md na pasta (com a linha Trilha:). Nota = √(DPS×EHP) do PoB, DPS do jogador ou de um minion (não é /100; só vale "
+            "aprovada). Leva alguns segundos por etapa."),
+        "schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Pasta de etapas ou XML: absoluto, relativo ao projeto, a builds/ ou a builds-teste/."},
+                "trilha": {"type": "string", "enum": ["campanha", "starter", "desbalanceada"], "description": "Trilha do método: decide os limites de gear. Padrão: a linha 'Trilha:' do ancora.md, senão starter. Etapas abaixo do nível de mapas (65) são sempre campanha."},
+            },
+            "required": ["path"],
+            "additionalProperties": False,
+        },
+        "call": tool_judge_build,
     },
 }
 

@@ -20,7 +20,7 @@ import zlib
 from pathlib import Path
 
 from src import pob_engine
-from src.lab import bench, data, gear, tree
+from src.lab import bench, data, gear, judge, stages, tree
 from src.lab.engine import DEFENCE_FIELDS, FIELDS, MINION_FIELDS, Lab, gem_level, normal, xml_groups
 
 _lock = threading.RLock()
@@ -31,7 +31,8 @@ PROJECT = Path(__file__).resolve().parents[2]
 EXPORT_DIR = PROJECT / "builds-teste"
 COMPACT = ["TotalDPS", "CombinedDPS", "AverageDamage", "Speed", "CritChance", "HitChance", "ManaCost", "ProjectileCount",
            "PowerCharges", "PowerChargesMax", "FrenzyCharges", "IgniteDPS", "BleedDPS", "PoisonDPS",
-           "Life", "Mana", "EnergyShield", "Evasion", "Armour", "TotalEHP", "FireResist", "ColdResist", "LightningResist", "ChaosResist"]
+           "Life", "Mana", "EnergyShield", "Evasion", "Armour", "TotalEHP", "FireResist", "ColdResist", "LightningResist", "ChaosResist",
+           "Spirit", "SpiritUnreserved"]
 # Condições de configuração que o laboratório sabe ligar. Não é a lista completa do PoB.
 CONFIG_OPTIONS = {
     "enemyLevel": "nível do inimigo (inteiro)",
@@ -224,7 +225,7 @@ def act_open(p: dict) -> dict:
         lab.close()
         raise
     _session = {"lab": lab, "name": name, "class": cls, "ascendancy": asc, "level": level, "log": [], "t0": time.time(),
-                "selected": None, "selected_key": None}
+                "selected": None, "selected_key": None, "ordem": []}  # ordem: nós na ordem em que foram alocados
     _log("open", p)
     return _summary(_session)
 
@@ -341,6 +342,8 @@ def act_allocate(p: dict) -> dict:
     s["selected_key"] = None
     _log("allocate", p)
     after = {n["id"] for n in lab.tree_context()["nodes"] if n["allocated"]}
+    # Ordem de alocação para `stages`: o que já estava, na ordem conhecida, e depois o que entrou agora.
+    s["ordem"] = [n for n in s.get("ordem") or [] if n in after] + sorted(after - current - set(s.get("ordem") or []))
     names = [known[x]["name"] for x in sorted(after - current)]
     out = {"allocated": len(after), "added": names[:40], "removed": len(current - after), "path_points": paths}
     dropped = sorted(wanted - after)
@@ -389,6 +392,7 @@ def act_tree_search(p: dict) -> dict:
     result = tree.greedy_tree(s["lab"], s["class"], budget, measure, weights, ascendancy=s["ascendancy"] or None,
                               notable_reach=int(p.get("notable_reach") or 6), small_reach=int(p.get("small_reach") or 2),
                               forced_first=p.get("forced_first") or None, allow_keystones=bool(p.get("allow_keystones")))
+    s["ordem"] = (s.get("ordem") or []) + [x["id"] for x in result["ordem"] if x["id"] not in (s.get("ordem") or [])]
     _log("tree_search", p)
     return result
 
@@ -443,10 +447,80 @@ def act_export(p: dict) -> dict:
     return out
 
 
+def act_stages(p: dict) -> dict:
+    """Build por etapas de nível (método do autor): um XML por nível de fechamento, mais etapas de respec.
+
+    params: levels? [15, 30, ...] · gems? (grupos; padrão: os da sessão, sem os concedidos por item/nó) ·
+    respecs? [{level, remove, add, skills, gear, motivo}] · gear? {nível: [{slot, text, degrau}]} · config? · name? · trilha?
+    Grava builds-teste/<nome>/L<nível>.xml, .codigo-pob.txt, etapas.md, o arquivo de loadouts e o juiz.json.
+    """
+    s = _current()
+    out = stages.run(s, p, EXPORT_DIR, _compact, _pob_code)
+    # Toda build por etapas sai julgada; a sessão volta ao estado anterior.
+    xml = s["lab"].export_xml()
+    try:
+        out["juiz"] = _verdict_summary(judge.judge_build(out["pasta"], s["lab"], p.get("trilha")))
+        (Path(out["pasta"]) / "juiz.json").write_text(json.dumps(out["juiz"], ensure_ascii=False, indent=1), encoding="utf-8")
+    finally:
+        s["lab"].load_xml(xml, s["name"])
+        s["selected_key"] = None
+    _log("stages", p)
+    return out
+
+
+def _verdict_summary(result: dict) -> dict:
+    """Veredito compacto: por etapa, aprovada, nota e os motivos de reprova."""
+    return {"aprovada": result["aprovada"], "trilha": result["trilha"], "nota": result["nota"], "nota_definicao": result["nota_definicao"],
+            "registro_ancora": result["registro_ancora"],
+            "etapas": [{"arquivo": e["arquivo"], "aprovada": e["aprovada"], "nota": e["nota"], "medidas": e["medidas"],
+                        "reprovas": [f"{f['regra']}: {f['motivo']}" for f in e["reprovas"]], "avisos": e["avisos"]}
+                       for e in result["etapas"]],
+            "regras": result["regras"]}
+
+
+def judge_path(raw) -> Path:
+    """Pasta de etapas ou XML: caminho absoluto, ou relativo ao projeto ou a builds-teste/."""
+    text = str(raw or "").strip()
+    if not text:
+        raise ValueError("informe path: pasta de etapas (L<nível>.xml, etapas.md, ancora.md) ou um XML do PoB")
+    path = Path(text)
+    for candidate in ([path] if path.is_absolute() else [PROJECT / path, EXPORT_DIR / path, PROJECT / "builds" / path]):
+        if candidate.exists():
+            return candidate
+    raise ValueError(f"não encontrado: {text} (procurado no projeto, em builds/ e em builds-teste/)")
+
+
+def judge_build(args: dict) -> dict:
+    """Julga uma build por etapas num motor próprio (não mexe na sessão de laboratório)."""
+    path = judge_path(args.get("path"))
+    _require_engine()
+    with _lock:
+        return _verdict_summary(judge.judge_build(path, trilha=args.get("trilha")))
+
+
+def act_judge(p: dict) -> dict:
+    """judge {path, trilha?}: veredito do juiz; usa o motor da sessão aberta quando há uma (e a devolve intacta)."""
+    if not _session:
+        path = judge_path(p.get("path"))
+        _require_engine()
+        return _verdict_summary(judge.judge_build(path, trilha=p.get("trilha")))
+    s = _current()
+    path = judge_path(p.get("path"))
+    xml = s["lab"].export_xml()
+    try:
+        out = _verdict_summary(judge.judge_build(path, s["lab"], p.get("trilha")))
+    finally:
+        s["lab"].load_xml(xml, s["name"])
+        s["selected_key"] = None
+    _log("judge", p)
+    return out
+
+
 ACTIONS = {
     "open": act_open, "status": act_status, "close": act_close, "add_skill": act_add_skill, "equip": act_equip,
     "config": act_config, "config_options": act_config_options, "allocate": act_allocate, "select": act_select,
     "stats": act_stats, "tree_search": act_tree_search, "gear_search": act_gear_search, "export": act_export,
+    "stages": act_stages, "judge": act_judge,
 }
 
 
