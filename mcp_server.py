@@ -572,6 +572,15 @@ def tool_economy_lookup(args: dict) -> dict:
     return _economy("lookup", args, lists=("kinds",), numbers={"limit": (1, 30)})
 
 
+def tool_economy_pairs(args: dict) -> dict:
+    data = _economy("pairs", args, lists=("kinds",), numbers={"limit": (1, 40)})
+    for row in data.get("results") or []:
+        row["anchor"]["text"] = _short_text(row["anchor"].get("text"), 260)
+        for p in row.get("producers") or []:
+            p["text"] = _short_text(p.get("text"), 200)
+    return data
+
+
 def tool_verify_anchor(args: dict) -> dict:
     params = {"skill": str(args.get("skill") or ""), "level": str(max(1, min(100, int(args.get("level") or 14))))}
     if args.get("family"):
@@ -787,6 +796,20 @@ TOOLS = {
             "additionalProperties": False,
         },
         "call": tool_economy_resource,
+    },
+    "economy_pairs": {
+        "description": "Pares skill -> skill: um registro PRODUZ um recurso (Whirlwind, Ignited Ground, lodged Spear...) e outro o LÊ, CONSOME ou REPLICA com dano 'more'. É a interação entre skills que costuma dar a assimetria. Hipótese por texto, mesma pontuação de economy_anchors; validar no lab com a condição do produtor ligada e desligada.",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "resource": {"type": "string", "description": "Opcional: limita a um recurso (ex.: whirlwind, ignited ground)."},
+                "kinds": {"type": "array", "items": {"type": "string"}, "description": "Mesmos kinds e atalhos de economy_anchors."},
+                "ascendancy": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 40, "default": 30},
+            },
+            "additionalProperties": False,
+        },
+        "call": tool_economy_pairs,
     },
     "economy_lookup": {
         "description": "Texto completo de skills, supports, passivas, uniques, afixos de joia, Timeless, Runes, Soul Cores e Idols cujo nome ou texto contém a busca, com os recursos e verbos detectados em cada um.",

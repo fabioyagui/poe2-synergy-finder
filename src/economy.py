@@ -125,6 +125,10 @@ PLAIN_RESOURCES = {
     # joias: o que uma joia de raio/unique altera ou destrava
     "passive": ("stat", r"passive skills?|passives(?: in radius)?|notable passive skills?|small passive skills?"),
     "jewel": ("entity", r"(?:corrupted |magic |socketed |sinister )*jewels?(?: sockets?)?"),
+    # entidades criadas por uma skill e lidas por outra (interação skill -> skill)
+    "whirlwind": ("entity", r"whirlwinds?"),
+    "twister": ("entity", r"twisters?"),
+    "lodged spear": ("entity", r"lodged spears?|spears? (?:is |are )?lodged"),
     "hit": ("event", r"on hit|when you hit|per enemy hit|enem(?:y|ies) hit"),
 }
 # Tão comuns que só fazem barulho no ranking de âncoras.
@@ -224,7 +228,7 @@ _RULES = [
         r"limited to[^.]{0,20}{R}", r"no longer[^.]{0,30}{R}", r"maximum of \d+ (?:\w+ ){0,2}{R}",
     ]),
     ("REPLICATES", [
-        r"additional (?:\w+ ){0,3}(?:per|for each|for every) (?:\w+ ){0,2}{R}",
+        r"additional (?:\w+%? ){0,6}(?:per|for each|for every) (?:\w+ ){0,2}{R}",
         r"(?:\brepeats?\b|additional times?|twice)[^.]{0,30}(?:per|for each|for every) (?:\w+ ){0,2}{R}",
         r"{R}[^.]{0,30}(?:\brepeats?\b|an additional time|twice|trigger\w* again)",
         r"(?:per|for each|for every) (?:\w+ ){0,2}{R}[^.]{0,30}(?:\brepeats?\b|additional (?:\w+ ){0,3}|twice)",
@@ -253,7 +257,7 @@ _RULES = [
         r"(?:increased|more|reduced|less|faster|slower)" + _NOT_LINK + r"{0,4} {R}",
     ]),
     ("PRODUCES", [
-        r"(?:gains?|grants?|generat\w+|creat\w+|appl(?:y|ies|ying)|inflict\w*|summon\w*|spawn\w*|leav\w+|build\w*|caus\w+|recover\w*|restor\w*|refresh\w*)(?: \w+%?){0,6} {R}",
+        r"(?:gains?|grants?|generat\w+|creat\w+|appl(?:y|ies|ying)|inflict\w*|summon\w*|spawn\w*|leav\w+|build\w*|caus\w+|recover\w*|restor\w*|refresh\w*|kicks? up|whips? up|lodg\w+)(?: \w+%?){0,6} {R}",
         r"chance to (?:\w+ ){0,3}{R}", r"^{R} (?:\w+ ){0,2}(?:on|when)\b",
         r"{R} (?:all |nearby |the |any )?(?:enem|target|everything|them|you\b)",
         r"{R}(?: \w+){0,3} (?:is|are) (?:created|generated|granted|applied|inflicted)",
@@ -727,6 +731,56 @@ class EconomyMap:
                 by_verb[verb] = {"count": len(g), "meaning": VERBS[verb],
                                  "edges": [self._edge_out(e) for e in g[:per]], "truncated": len(g) > per}
         return {"ok": True, "resource": self.resources[name], "by_verb": by_verb}
+
+    def pairs(self, resource: str = "", kinds=None, ascendancy: str = "", limit: int = 30) -> dict:
+        """Pares skill -> skill: um registro PRODUCES o recurso, outro o lê, consome ou replica com 'more'.
+
+        É onde a assimetria costuma morar no PoE 2 (Whirling Slash cria Whirlwind; Twister consome e replica).
+        Mesma pontuação de anchors; o par exige registros diferentes. `self_loop` marca âncora que também produz.
+        """
+        want = self.resolve(resource) if resource else None
+        if resource and not want:
+            return {"ok": False, "error": f'Nenhum recurso casa com "{resource}". Chame economy_status para ver a lista.'}
+        kinds = expand_kinds(kinds)
+        cap = max(1, min(int(limit or 30), 200))
+        producers, anchors = defaultdict(list), []
+        for e in self.edges:
+            if want and e["resource"] != want:
+                continue
+            if not want and e["resource"] in UNIVERSAL:
+                continue
+            if not self._pass(e, kinds, ascendancy):
+                continue
+            if e["verb"] == "PRODUCES":
+                producers[e["resource"]].append(e)
+            else:
+                score = self._anchor_score(e, False)
+                if score and e["verb"] != "UNLOCKS":
+                    anchors.append((score, e))
+        anchors.sort(key=lambda x: (-x[0], x[1]["resource"], x[1]["text"]))
+        rows, seen, without = [], set(), []
+        for score, e in anchors:
+            r = self.records[e["i"]]
+            key = (r["name"], r["kind"], e["resource"])
+            if key in seen:
+                continue
+            seen.add(key)
+            others, mine = {}, False
+            for p in producers.get(e["resource"], []):
+                pr = self.records[p["i"]]
+                if pr["name"] == r["name"] and pr["kind"] == r["kind"]:
+                    mine = True
+                    continue
+                others.setdefault((pr["name"], pr["kind"]), self._edge_out(p))
+            row = {"score": score, "axis": axis_of(e["text"]), "anchor": self._edge_out(e), "self_loop": mine,
+                   "producers": list(others.values())[:8], "producer_count": len(others),
+                   "producer_slots": dict(Counter(k for _n, k in others))}
+            (rows if others else without).append(row)
+        return {"ok": True, "total": len(rows), "results": rows[:cap],
+                "anchors_without_producer": [{"anchor": w["anchor"], "score": w["score"], "self_loop": w["self_loop"]}
+                                             for w in without[:10]],
+                "hint": "Par = hipótese por texto. Medir no lab a âncora com e sem a condição que o produtor cria; "
+                        "o que o PoB não modela fica pendente de jogo."}
 
     def lookup(self, query: str, kinds=None, limit: int = 30) -> dict:
         q = str(query or "").strip().casefold()

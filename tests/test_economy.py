@@ -465,5 +465,44 @@ class JewelAndAugmentRecordTests(unittest.TestCase):
         self.assertIn("JEWELS", m.status()["kind_groups"])
 
 
+class PairTests(unittest.TestCase):
+    """Interação skill -> skill: uma cria a entidade, outra a lê/consome/replica com 'more'."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.map = economy.EconomyMap.from_entities([
+            entity("Whirling Slash", "SKILL", "Perform a circular slash that kicks up a Whirlwind around you.", "Maximum 3 stages"),
+            entity("Whirlwind Lance", "SKILL", "Consumes a Frenzy Charge if possible to create the Whirlwind with one more stage"),
+            entity("Twister", "SKILL",
+                   "Consumes Whirlwinds to create an additional twister and deal 80% more damage per Whirlwind stage",
+                   "Twister duration is 3 seconds"),
+            entity("Flicker Strike", "SKILL", "Strikes 2 additional times per Power Charge"),
+            entity("Lone", "SKILL", "40% more Damage against [Shock|Shocked] enemies"),
+        ], {"source": "fixture"})
+
+    def test_skill_created_entities_are_resources(self):
+        verbs = {(e["resource"], e["verb"]) for r in self.map.records if r["name"] == "Whirling Slash" for e in economy.edges_for(r)}
+        self.assertIn(("whirlwind", "PRODUCES"), verbs)
+        twister = {(e["resource"], e["verb"]) for r in self.map.records if r["name"] == "Twister" for e in economy.edges_for(r)}
+        self.assertIn(("whirlwind", "CONSUMES"), twister)
+        self.assertIn(("whirlwind", "REPLICATES"), twister)
+
+    def test_pairs_join_producer_and_anchor_from_different_skills(self):
+        out = self.map.pairs("whirlwind")
+        self.assertTrue(out["ok"])
+        row = out["results"][0]
+        self.assertEqual((row["anchor"]["name"], row["anchor"]["verb"], row["score"], row["self_loop"]),
+                         ("Twister", "REPLICATES", 5, False))
+        self.assertEqual({p["name"] for p in row["producers"]}, {"Whirling Slash", "Whirlwind Lance"})
+        self.assertEqual(row["producer_slots"], {"SKILL": 2})
+
+    def test_anchor_without_producer_is_listed_apart(self):
+        out = self.map.pairs()
+        names = {w["anchor"]["name"] for w in out["anchors_without_producer"]}
+        self.assertIn("Flicker Strike", names)  # ninguém produz Power Charge na fixture
+        self.assertEqual([r["anchor"]["name"] for r in out["results"]], ["Twister"])
+        self.assertFalse(self.map.pairs("nonexistent")["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()
