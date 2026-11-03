@@ -79,6 +79,9 @@ class Lab:
         self.classes = {}
         for c in self.req("get_classes")["result"]["classes"]:
             self.classes[c["name"]] = {"id": c["classId"], "ascendancies": {a["name"]: a["id"] for a in c["ascendancies"]}}
+        # Hipótese de patch ativa vale para todo motor do laboratório (src/lab/hypothesis.py).
+        from src.lab import hypothesis
+        self.hypothesis_report = hypothesis.apply(self) if hypothesis.active() else []
 
     def __enter__(self):
         return self
@@ -106,8 +109,15 @@ class Lab:
         self.req("new_build")
         self.req("set_tree", {"classId": class_id, "ascendClassId": asc_id, "nodes": list(nodes)})
         self.req("set_level", {"level": level})
+        self._hypothesis_mods()
         if weapon:
             self.equip("Weapon 1", weapon)
+
+    def _hypothesis_mods(self):
+        """Build nova ou carregada perde a config: os mods da hipótese ativa voltam (substituem os da build)."""
+        from src.lab import hypothesis
+        if hypothesis.active():
+            self.config({"customMods": hypothesis.custom_mods()})
 
     def set_level(self, level: int):
         self.req("set_level", {"level": int(level)})
@@ -168,6 +178,7 @@ class Lab:
 
     def load_xml(self, xml: str, name: str = "lab"):
         self.engine.load_xml(xml, name)
+        self._hypothesis_mods()
 
     def export_xml(self) -> str:
         return self.req("export_build_xml")["xml"]

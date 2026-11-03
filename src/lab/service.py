@@ -20,7 +20,7 @@ import zlib
 from pathlib import Path
 
 from src import pob_engine
-from src.lab import bench, data, gear, judge, stages, tree
+from src.lab import bench, data, gear, hypothesis, judge, stages, tree
 from src.lab.engine import DEFENCE_FIELDS, FIELDS, MINION_FIELDS, Lab, gem_level, normal, xml_groups
 
 _lock = threading.RLock()
@@ -82,7 +82,7 @@ def verify_anchor(args: dict) -> dict:
             weapon = data.weapon_for(family, level)
             rows = bench.verify_anchor(lab, family, name, level)
     specific = [r for r in rows if not r["generic"]]
-    return {
+    return _with_hypothesis({
         "skill": name, "family": family, "class": data.FAMILY[family][0], "level": level, "weapon": weapon,
         "conditions_tested": list(bench.CONDITIONS),
         "specific": specific, "generic": [r for r in rows if r["generic"]],
@@ -90,7 +90,7 @@ def verify_anchor(args: dict) -> dict:
                     "nenhum multiplicador próprio medido; só os genéricos (shock, armadura quebrada) ou nada"),
         "caveats": ["arma branca, sem supports, sem árvore, inimigo normal do mesmo nível",
                     "condições que o PoB não modela não aparecem (stages, empowered, consumo de Frenzy, minions)"],
-    }
+    })
 
 
 # ---------- sessão ----------
@@ -495,7 +495,7 @@ def judge_build(args: dict) -> dict:
     path = judge_path(args.get("path"))
     _require_engine()
     with _lock:
-        return _verdict_summary(judge.judge_build(path, trilha=args.get("trilha")))
+        return _with_hypothesis(_verdict_summary(judge.judge_build(path, trilha=args.get("trilha"))))
 
 
 def act_judge(p: dict) -> dict:
@@ -516,11 +516,59 @@ def act_judge(p: dict) -> dict:
     return out
 
 
+def act_hypothesis(p: dict) -> dict:
+    """hypothesis {nome?, fonte?, gems?:[{skill, set?:{castTime, cooldown, critChance, baseMultiplier, storedUses,
+    damageMultiplier, attackSpeedMultiplier, attackTime, manaCost, spiritReservationFlat, baseEffectiveness,
+    incrementalEffectiveness}, scale?:{stat por nível: fator}, constant?:{stat fixo: valor}, statSet?:índice}],
+    mods?:[linhas de mod do PoB]} liga uma hipótese de patch em todo motor do lab; {reset:true} desliga; sem
+    argumentos mostra a ativa. Serve para medir as notas de um patch antes do PoB novo: o número é estimativa e sai marcado."""
+    if p.get("reset"):
+        hypothesis.set_active(None)
+        if _session:
+            hypothesis.apply(_session["lab"])
+            _log("hypothesis", p)
+            return {"ativa": None, "stats": _compact(_session["lab"].stats(FIELDS + DEFENCE_FIELDS))}
+        return {"ativa": None}
+    if not p.get("gems") and not p.get("mods"):
+        return {"ativa": hypothesis.active()}
+    new = hypothesis.normalize(p)
+    previous = hypothesis.active()
+    _require_engine()
+    hypothesis.set_active(new)
+    try:
+        lab = _session["lab"] if _session else Lab()  # Lab() já aplica a hipótese ativa ao iniciar
+        try:
+            bad = hypothesis.check_mods(lab, new["mods"])
+            if bad:
+                raise ValueError(f"o PoB não entende estes mods (seriam descartados calados): {bad}")
+            report = hypothesis.apply(lab) if _session else lab.hypothesis_report
+        finally:
+            if not _session:
+                lab.close()
+    except Exception:
+        hypothesis.set_active(previous)
+        if _session:
+            hypothesis.apply(_session["lab"])
+        raise
+    out = {"ativa": hypothesis.label(), "gems": report, "mods": new["mods"]}
+    if _session:
+        _log("hypothesis", p)
+        out["stats"] = _compact(_session["lab"].stats(FIELDS + DEFENCE_FIELDS))
+    return out
+
+
+def act_patch_diff(p: dict) -> dict:
+    """patch_diff {antes?, depois?, name?}: diff do catálogo RePoE entre a versão importada na base e o snapshot
+    baixado mais recente (gems novas, removidas e alteradas; nós da árvore); grava o relatório em builds-teste/patch/."""
+    from src import catalog_diff
+    return catalog_diff.run(p.get("antes"), p.get("depois"), name=p.get("name"), out_dir=EXPORT_DIR / "patch")
+
+
 ACTIONS = {
     "open": act_open, "status": act_status, "close": act_close, "add_skill": act_add_skill, "equip": act_equip,
     "config": act_config, "config_options": act_config_options, "allocate": act_allocate, "select": act_select,
     "stats": act_stats, "tree_search": act_tree_search, "gear_search": act_gear_search, "export": act_export,
-    "stages": act_stages, "judge": act_judge,
+    "stages": act_stages, "judge": act_judge, "hypothesis": act_hypothesis, "patch_diff": act_patch_diff,
 }
 
 
@@ -529,4 +577,12 @@ def handle(action: str, params: dict | None) -> dict:
     if not fn:
         raise ValueError(f"ação desconhecida: {action!r}. Ações: {', '.join(ACTIONS)}")
     with _lock:
-        return fn(params if isinstance(params, dict) else {})
+        return _with_hypothesis(fn(params if isinstance(params, dict) else {}))
+
+
+def _with_hypothesis(out):
+    """Todo resultado medido com hipótese de patch ativa sai marcado."""
+    label = hypothesis.label()
+    if label and isinstance(out, dict) and "hipotese" not in out:
+        out["hipotese"] = label
+    return out

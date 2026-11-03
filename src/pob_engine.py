@@ -1465,6 +1465,8 @@ def _prepare_bridge_overlay(source_bridge: Path) -> Path:
     install_extension(target)
     from src.workbench import install_extension as install_workbench
     install_workbench(target)
+    from src.lab.hypothesis import install_extension as install_hypothesis
+    install_hypothesis(target)
 
     for generated in (
         target / "bootstrap.local.lua",

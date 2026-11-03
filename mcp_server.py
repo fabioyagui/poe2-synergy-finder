@@ -589,7 +589,7 @@ def tool_verify_anchor(args: dict) -> dict:
 
 
 LAB_ACTIONS = {"open", "status", "close", "add_skill", "equip", "config", "config_options", "allocate", "select",
-               "stats", "tree_search", "gear_search", "export", "stages", "judge"}
+               "stats", "tree_search", "gear_search", "export", "stages", "judge", "hypothesis", "patch_diff"}
 
 
 def tool_lab(args: dict) -> dict:
@@ -858,11 +858,19 @@ TOOLS = {
             "config?, name?, trilha?} grava a build por etapas de nível em builds-teste/<nome>/ (L<nível>.xml por etapa, árvore no orçamento "
             "do nível com os pontos de missão do PoB, gems no nível permitido, inimigo e penalidade da faixa, etapas.md, um arquivo de loadouts "
             "e o juiz.json; respec = etapa à parte com antes/depois) · judge {path, trilha?} (ver judge_build) · close {}. "
+            "Preparação de patch, antes do PoB e do RePoE novos: hypothesis {nome?, fonte?, gems?:[{skill, set?:{castTime, cooldown, "
+            "critChance, baseMultiplier, storedUses, damageMultiplier, attackSpeedMultiplier, attackTime, manaCost, spiritReservationFlat, "
+            "baseEffectiveness, incrementalEffectiveness}, scale?:{stat por nível: fator}, constant?:{stat fixo: valor}, statSet?}], "
+            "mods?:[linhas de mod do PoB]} troca números de gems na memória do PoB 2 e aplica mods customizados em todo motor do lab até "
+            "{reset:true}; sem argumentos mostra a ativa; mod que o PoB não entende é recusado; todo resultado sai marcado hipotese "
+            "(estimativa das notas, não o PoB do patch; skill, keystone ou ascendência nova não é simulável assim) · "
+            "patch_diff {antes?, depois?, name?} compara o catálogo RePoE importado na base com o snapshot baixado mais recente "
+            "(gems novas/removidas/alteradas, nós da árvore) e grava o relatório em builds-teste/patch/. "
             "Números são do PoB nas condições configuradas, não desempenho no jogo."),
         "schema": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "description": "open, status, close, add_skill, equip, config, config_options, allocate, select, stats, tree_search, gear_search, export, stages, judge"},
+                "action": {"type": "string", "description": "open, status, close, add_skill, equip, config, config_options, allocate, select, stats, tree_search, gear_search, export, stages, judge, hypothesis, patch_diff"},
                 "params": {"type": "object", "description": "Parâmetros da ação (ver descrição)."},
             },
             "required": ["action"],
