@@ -63,3 +63,17 @@ Tree simulator uses PoB node IDs, path/dependencies and read-only addNodes/remov
 - Importar/usar build fecha modal e limpa caches de visoes anteriores.
 - Atualizador preserva data/engine. Nenhum download do PoB exigido.
 - Validacao local com fixtures; PoB Windows real nao executado.
+
+
+## 2026-11-03 — preparação para patch novo (lab)
+- `lab hypothesis`: números de gems (statSets do PoB 2, custo de mana, reserva de Spirit) e mods customizados
+  na memória do PoB 2, em todo motor do lab, até `{reset:true}`; resultado marcado `hipotese`; mod que o PoB
+  não entende é recusado. Provado no PoB 2 headless: Tempest Bell com cooldown antigo de 1 s cai de 3,94 para
+  2,83 de DPS e o reset devolve 3,94 exato.
+- Árvore: texto do `tree.json` do PoB 2 onde o RePoE deixa stat sem tradução (48 nós ganharam 60 linhas; as
+  keystones do PoE 2 já vinham traduzidas, ao contrário do PoE 1).
+- `lab patch_diff`: diff do catálogo RePoE (gems, skills, árvore) entre a versão importada e o snapshot novo,
+  em `builds-teste/patch/`; validado com mudanças plantadas numa cópia dos dados reais.
+- Detalhes e o que ficou de fora: `docs/2026-11-03-preparacao-patch-novo.md`.
+- Suíte: 463 testes, 426 passaram, 37 pulados (PoB real incluído). Handshake MCP: 17 tools OK (o script
+  contava 15 desde `economy_pairs` e `judge_build`; corrigido).

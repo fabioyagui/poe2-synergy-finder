@@ -46,8 +46,10 @@ def main():
 
         tools=ask(p,{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}})
         assert set(tools["result"].keys())=={"tools"},tools
-        assert len(tools["result"]["tools"])==15,tools
-        print("tools/list exato MCP 2025-06-18: 15 tools OK")
+        names=[t["name"] for t in tools["result"]["tools"]]
+        assert len(names)==17,names  # 15 + economy_pairs + judge_build (lab e judge_build são as de laboratório)
+        assert {"lab","judge_build","economy_pairs"}<=set(names),names
+        print("tools/list exato MCP 2025-06-18: 17 tools OK")
 
         # Validate every tool has the fields Codex/rmcp expects.
         for tool in tools["result"]["tools"]:
@@ -55,7 +57,7 @@ def main():
             assert isinstance(tool.get("description"),str)
             assert isinstance(tool.get("inputSchema"),dict)
             assert tool["inputSchema"].get("type")=="object"
-        print("schemas das 15 tools: OK")
+        print("schemas das 17 tools: OK")
         print("HANDSHAKE MCP CODEX 0.154: OK")
     finally:
         try:p.stdin.close()

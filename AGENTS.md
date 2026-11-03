@@ -40,6 +40,11 @@ The Finder's current build is read-only for the agent. To build something new, o
 - Every lab number comes with its conditions (white weapon, no supports, enemy level, charges). Say them. "0" from PoB can mean "not modelled": check the skill text before concluding it has no effect.
 - Save what you measure: `lab export` writes XML, PoB import code and the action log to `builds-teste/`; put conclusions in `docs/` with the date.
 
+## Patch notes before the new PoB 2 / RePoE
+- `lab hypothesis {nome?, fonte?, gems?:[{skill, set?, scale?, constant?, statSet?}], mods?:[...]}` changes gem numbers in the PoB 2 memory (`set`: castTime, cooldown, critChance, baseMultiplier, storedUses, damageMultiplier, attackSpeedMultiplier, attackTime, manaCost, spiritReservationFlat, baseEffectiveness, incrementalEffectiveness; `scale`: a per-level stat of the statSet, e.g. `spell_minimum_base_lightning_damage`; `constant`: a fixed stat) and applies custom mod lines to every lab engine until `lab hypothesis {reset:true}`. A mod the PoB parser does not understand is refused. Every result carries `hipotese`: it is an estimate from the notes, not the new PoB. Skill, support, keystone or ascendancy that does not exist yet cannot be simulated this way; say so.
+- `lab patch_diff {antes?, depois?, name?}` after the new RePoE is downloaded: compares the catalog imported in the base with the latest snapshot (gems new/removed/changed, skills without a gem only counted, tree nodes) and writes `builds-teste/patch/<name>.md|.json`. It reports data changes, not buffs or nerfs; measure with PoB.
+- Tree text: where RePoE leaves a node stat without translation, the importer reads the node text from the installed PoB `TreeData/<latest>/tree.json` (`source: "pob_tree"` in the entity texts). Keystones already come translated in the PoE 2 RePoE.
+
 ## Recommendation style
 State which facts came from PoB calculations versus RePoE mechanical evidence. Prefer a few tested candidates with explicit tradeoffs over broad unvalidated advice.
 

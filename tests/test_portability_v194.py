@@ -52,7 +52,7 @@ class PortabilityV194Tests(unittest.TestCase):
                  mock.patch.object(pob_engine, "_patch_handlers_calcs_output", side_effect=identity), \
                  mock.patch.object(pob_engine, "_patch_handlers_native_support_whatif", side_effect=identity), \
                  mock.patch("src.tree_simulator.install_extension", return_value=None), \
-                 mock.patch("src.workbench.install_extension", return_value=None):
+                 mock.patch("src.workbench.install_extension", return_value=None),                  mock.patch("src.lab.hypothesis.install_extension", return_value=None):
                 out = pob_engine._prepare_bridge_overlay(bridge)
 
             self.assertNotEqual(out, overlay)
