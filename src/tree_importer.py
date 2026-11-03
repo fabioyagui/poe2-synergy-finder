@@ -16,6 +16,50 @@ SOURCE='RePoE PoE2 Tree'
 TREE_FILES=('passive_skill_trees/Default.min.json','ascendancies.min.json',
     'stat_translations/passive_skill_stat_descriptions.min.json','stat_translations/stat_descriptions.min.json')
 TREE_KINDS={'PASSIVE','NOTABLE','KEYSTONE','ASCENDANCY_NODE','ASCENDANCY','JEWEL_SOCKET','TREE_DECORATION','TREE_START'}
+# Texto dos nós no TreeData do PoB 2, usado onde o RePoE deixa um stat sem tradução (2026-11-03, RePoE 4.5.5.2:
+# 79 stats em 68 nós, ex.: life_regeneration_rate_per_minute_%, life_remnants_gain_per_globe; as keystones vêm
+# traduzidas, ao contrário do PoE 1). O hash do RePoE é o `skill` do nó no tree.json.
+NODE_TEXT_SOURCE='pob_tree'
+
+def pob_tree_file(pob_src=None):
+    """TreeData/<última versão>/tree.json do PoB instalado, ou None. A lista vem de GameVersions.lua
+    (`latestTreeVersion = treeVersionList[#treeVersionList]`)."""
+    import re
+    if pob_src is None:
+        try:
+            from . import pob_engine
+            pob_src=pob_engine._expand(pob_engine.load_config().get('pob_src_path'))
+        except Exception:return None
+    if not pob_src:return None
+    pob_src=Path(pob_src)
+    versions=[]
+    try:
+        m=re.search(r'treeVersionList\s*=\s*\{([^}]*)\}',(pob_src/'GameVersions.lua').read_text(encoding='utf-8'))
+        if m:versions=re.findall(r'"([^"]+)"',m.group(1))
+    except OSError:pass
+    for v in reversed(versions):
+        p=pob_src/'TreeData'/v/'tree.json'
+        if p.is_file():return p
+    return None
+
+def node_texts_from_tree(tree):
+    """hash do nó (str) -> [linhas] de todo nó do tree.json do PoB com `stats` em texto. Uma string do PoB
+    pode ter várias linhas separadas por quebra de linha."""
+    nodes=tree.get('nodes') if isinstance(tree,dict) else None
+    out={}
+    for key,node in (nodes.items() if isinstance(nodes,dict) else []):
+        if not isinstance(node,dict) or node.get('isMastery') or not isinstance(node.get('stats'),list):continue
+        lines=[l.strip() for s in node['stats'] if isinstance(s,str) for l in s.splitlines() if l.strip()]
+        if lines:out[str(node.get('skill',key))]=lines
+    return out
+
+def load_node_texts(path):
+    """(hash -> [linhas], info) do tree.json do PoB; (None, info) quando não há arquivo."""
+    if path is None:return None,{'source':NODE_TEXT_SOURCE,'available':False}
+    path=Path(path);raw=path.read_bytes()
+    table=node_texts_from_tree(json.loads(raw.decode('utf-8-sig')))
+    return table,{'source':NODE_TEXT_SOURCE,'available':True,'path':str(path),'tree_version':path.parent.name,
+                  'sha256':hashlib.sha256(raw).hexdigest(),'node_texts':len(table)}
 
 def stable_id(sid):return hashlib.sha256((SOURCE+'|'+str(sid)).encode()).hexdigest()[:24]
 
@@ -39,7 +83,7 @@ def node_container(tree):
         raise ValueError('Mais de uma árvore com o mesmo tamanho. A importação exige um arquivo Default, não Atlas.')
     return candidates[0]
 
-def parse(tree,ascendancies,translations=None):
+def parse(tree,ascendancies,translations=None,node_texts=None):
     nodes,path=node_container(tree)
     if not isinstance(ascendancies,dict):raise ValueError('Ascendências devem ser um objeto JSON.')
     asc={str(k):v for k,v in ascendancies.items() if isinstance(v,dict) and isinstance(v.get('name'),str)}
@@ -111,6 +155,18 @@ def parse(tree,ascendancies,translations=None):
             for i,s in enumerate(value):
                 if isinstance(s,str):e['texts'].append({'text':plain(s),'original':s,'path':path+'.'+key+f'.stats[{i}]','component':'node'})
                 elif isinstance(s,dict):e['stats'].append({'path':path+'.'+key+f'.stats[{i}]','id':str(s.get('id',i)),'value':s})
+        # Stat sem tradução no RePoE (ex.: life_regeneration_rate_per_minute_%, "Grants Skill" de ascendência):
+        # vale o texto do tree.json do PoB 2, ao lado do que o RePoE deu. Sem isso o mapa de âncoras não via o efeito.
+        name_only=bool(translated) and all(plain(r['text']).strip()==node['name'] for r in translated)
+        pob_lines=(node_texts or {}).get(str(node.get('hash',key))) if missing or name_only else None
+        if pob_lines:
+            have={x['text'] for x in e['texts']}
+            added=0
+            for i,line in enumerate(pob_lines):
+                if plain(line) not in have:
+                    e['texts'].append({'text':plain(line),'original':line,'path':f'pob.nodes.{node.get("hash",key)}.stats[{i}]',
+                                       'component':'node','source':NODE_TEXT_SOURCE});added+=1
+            if added:diag['pob_text_nodes']=diag.get('pob_text_nodes',0)+1;diag['pob_text_lines']=diag.get('pob_text_lines',0)+added
         diag['translated_nodes']+=bool(translated);diag['untranslated_stats']+=len(missing);diag['stats']+=len(e['stats'])
         e['untranslated_stats']=missing
         g=node.get('granted_skill')
@@ -154,7 +210,10 @@ def import_tree(folder,version=None,progress=None,_connection=None):
     if version is None and (folder/'manifest.json').is_file():
         try:version=json.loads((folder/'manifest.json').read_text()).get('repoe_version')
         except (OSError,ValueError):pass
-    rows,diag,edges,nodes=parse(loaded[TREE_FILES[0]],loaded[TREE_FILES[1]],{k:v for k,v in loaded.items() if k in TREE_FILES[2:]})
+    node_texts,text_info=load_node_texts(pob_tree_file())
+    rows,diag,edges,nodes=parse(loaded[TREE_FILES[0]],loaded[TREE_FILES[1]],{k:v for k,v in loaded.items() if k in TREE_FILES[2:]},
+                                node_texts=node_texts)
+    diag['node_text_source']=text_info
     if progress:progress('Gravando árvore e ascendências',f'{len(rows)} entidades; operação atômica')
     with (nullcontext(_connection) if _connection is not None else storage.connect()) as c:
         if _connection is None:c.execute('BEGIN IMMEDIATE')
