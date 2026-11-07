@@ -48,4 +48,5 @@ de missão por classe: as gems vêm de drop e de Uncut Skill Gems, e a skill ati
 - Rotas abertas da comunidade (não conferidas): Domistae `poe2-leveling`, ExileXP (dados de campanha em
   TypeScript), `poe-leveling-overlay` (MIT). Conferir a licença de cada uma antes de importar.
 
-Ainda não implementado; aguarda decisão do autor.
+Decisão do autor (2026-11-07): no PoE 2 as etapas ficam por nível; não há `por_area`. Faltava um marco de missão
+que liberasse gem, e o nível já cobre o tier da skill. Um bloco `{nível: grupos}` cria a etapa no nível da troca.
