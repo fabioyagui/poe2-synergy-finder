@@ -577,11 +577,28 @@ def act_patch_diff(p: dict) -> dict:
     return catalog_diff.run(p.get("antes"), p.get("depois"), name=p.get("name"), out_dir=EXPORT_DIR / "patch")
 
 
+def act_usage(p: dict) -> dict:
+    """usage {classe, skill?, amostra?:10, liga?, momento?, config?:{...}, limite?:30}: uso real (poe.ninja) × teste de
+    remoção no PoB × nota do mapa. Para cada personagem da amostra, tira um unique, uma joia, um nó de ascendência ou
+    uma keystone por vez e mede DPS e EHP; marca "lacuna do leitor" (muito usado, pesa no PoB, mapa dá 0) e "valor
+    fora do PoB" (muito usado, mede ~0). Motor próprio, em cache por personagem; grava builds-teste/uso/."""
+    from src.lab import usage
+    classe = str(p.get("classe") or p.get("class") or "").strip()
+    if not classe:
+        raise ValueError("classe obrigatória: a ascendência como o poe.ninja escreve (Gemling Legionnaire, Spirit Walker...)")
+    config = p.get("config") if isinstance(p.get("config"), dict) else None
+    out = usage.run(classe, str(p.get("skill") or ""), int(p.get("amostra") or 10), p.get("liga"), config,
+                    momento=str(p.get("momento") or ""))
+    limit = max(1, min(80, int(p.get("limite") or 30)))
+    out["tabela"] = out["tabela"][:limit]
+    return out
+
+
 ACTIONS = {
     "open": act_open, "status": act_status, "close": act_close, "add_skill": act_add_skill, "equip": act_equip,
     "config": act_config, "config_options": act_config_options, "allocate": act_allocate, "select": act_select,
     "stats": act_stats, "tree_search": act_tree_search, "gear_search": act_gear_search, "export": act_export,
-    "stages": act_stages, "judge": act_judge, "hypothesis": act_hypothesis, "patch_diff": act_patch_diff,
+    "stages": act_stages, "judge": act_judge, "hypothesis": act_hypothesis, "patch_diff": act_patch_diff, "usage": act_usage,
 }
 
 

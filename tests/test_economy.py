@@ -504,5 +504,38 @@ class PairTests(unittest.TestCase):
         self.assertFalse(self.map.pairs("nonexistent")["ok"])
 
 
+class MagnitudeTests(unittest.TestCase):
+    """Famílias de poder que não citam um recurso do léxico (porte do PoE 1 + Gemling no PoE 2)."""
+
+    def edges(self, original, kind="ASCENDANCY_NODE"):
+        record = economy.record_from_entity(entity("X", kind, original, ascendancy="Gemling Legionnaire"))
+        return {(e["resource"], e["verb"]): e for e in economy.edges_for(record)}
+
+    def test_gemling_nodes_are_no_longer_zero(self):
+        cases = {
+            "Gem Quality grants Socketed Skills an additional effect": ("gem quality", "AMPLIFIES", 3),
+            "+2% to Quality of all Skills": ("gem quality", "AMPLIFIES", 1.5),
+            "+2 to Level of all Skills with an Intelligence requirement": ("gem levels", "AMPLIFIES", 2),
+            "Skills deal 20% increased Damage per Connected Red Support Gem": ("support gems", "READS", 2),
+            "+1% to Maximum Fire Resistance per 3 Red Support Gems Socketed": ("support gems", "READS", 1),  # defesa: metade
+            "Grants Skill: Virtuous Barrier": ("granted skill", "UNLOCKS", 2),
+        }
+        for text, (resource, verb, score) in cases.items():
+            with self.subTest(text=text):
+                edge = self.edges(text).get((resource, verb))
+                self.assertIsNotNone(edge)
+                self.assertEqual(economy.EconomyMap._anchor_score(edge, False), score)
+
+    def test_poe1_families_still_match(self):
+        self.assertIn(("damage as extra", "CONVERTS"), self.edges("Gain 4% of Physical Damage as extra Chaos Damage"))
+        self.assertIn(("additional projectiles", "REPLICATES"), self.edges("Skills fire an additional Projectile"))
+        self.assertIn(("resistance overcap", "READS"),
+                      self.edges("8% increased Elemental Damage per 1% Fire Resistance above 75%"))
+
+    def test_plain_level_and_quality_lines_do_not_overmatch(self):
+        self.assertFalse({k for k in self.edges("Gain 10 Mana per Level") if k[0] in ("gem levels", "gem quality")})
+        self.assertFalse({k for k in self.edges("20% increased Quality of Flasks") if k[0] == "gem quality"})
+
+
 if __name__ == "__main__":
     unittest.main()

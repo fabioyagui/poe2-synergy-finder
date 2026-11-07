@@ -215,6 +215,8 @@ def mentions(clause: str, spans: list[tuple[str, int, int]], plain_tags: bool = 
 _NOT_LINK = r"(?: (?!while|whilst|if|when|against|to|per|for|with|on|from|by|and|or)\w+%?)"
 _RULES = [
     ("UNLOCKS", [
+        # PoE 1, Anathema: "Your Curse Limit is equal to your maximum Power Charges"
+        r"{R} limit (?:is|are) equal to",
         r"(?:\+\d+|additional|increased|more)(?: \w+){0,3} maximum (?:number of )?(?:\w+ ){0,2}{R}",
         r"{R}[^.]{0,25}(?:is|are) not consumed",
         r"(?:do(?:es)? not|without|cannot) (?:consum|remov|expend|los)\w*[^.]{0,25}{R}",
@@ -333,6 +335,40 @@ _RECORD_KINDS = {"SKILL", "META", "SUPPORT", "PASSIVE", "NOTABLE", "KEYSTONE", "
 JEWEL_KINDS = {"JEWEL_MOD", "TIME_LOST", "JEWEL_UNIQUE", "TIMELESS"}
 AUGMENT_KINDS = {"RUNE", "SOUL_CORE", "IDOL", "AUGMENT"}
 ITEM_KINDS = {"UNIQUE", "MOD"} | JEWEL_KINDS | AUGMENT_KINDS
+
+# Poder por magnitude que não cita um recurso do léxico (porte do PoE 1, 2026-11-07). No PoE 1, a varredura de uso
+# (poe.ninja 3.29) achou cada família num item muito usado que o mapa deixava em 0. No PoE 2, o Gemling Legionnaire
+# (2% no dia 3 da Runes of Aldur, 37,5% no dia 3 da Forbidden Rites) tinha os nós-chave com nota 0: nível de gem,
+# qualidade de gem e supports conectados não eram recursos. (pseudo-recurso, verbo, score, regra sobre a linha)
+MAGNITUDE = [
+    # PoE 1, Ming's Heart: "Gain 60% of Physical Damage as Extra Chaos Damage"
+    ("damage as extra", "CONVERTS", 3, re.compile(r"\bgain (?:an? )?(?:additional )?\d+% of [^.]{0,40}damage as extra\b", re.I)),
+    # PoE 1, Mystic Refractor: "Skills fire 3 additional Projectiles"
+    ("additional projectiles", "REPLICATES", 2.5,
+     re.compile(r"\b(?:fires?|skills fire|shoots?) (?:an? |\d+ )additional projectiles?\b", re.I)),
+    # PoE 1, Nebulis: "8% increased Elemental Damage per 1% ... Resistance above 75%"
+    ("resistance overcap", "READS", 3, re.compile(r"\bper \d+% [^.]{0,50}resistances? above (?:75%|maximum)", re.I)),
+    # PoE 1, The Taming: "for each type of Elemental Ailment on Enemy"
+    ("ailment types", "READS", 3,
+     re.compile(r"\b(?:for each|per) (?:type of |different )?(?:elemental )?ailments?\b[^.]{0,20}(?:on|inflicted|affecting)", re.I)),
+    # PoE 2, Gemling: "+2 to Level of all Skills with an Intelligence requirement", "+1 to Level of all Minion Skills"
+    ("gem levels", "AMPLIFIES", 2,
+     re.compile(r"\+\d+ to level of (?:all )?(?:[\w-]+ ){0,5}(?:skills?|skill gems|gems)\b", re.I)),
+    # PoE 2, Gemling: "Gem Quality grants Socketed Skills an additional effect" (a qualidade paga duas vezes em cada
+    # gem) e "+2% to Quality of all Skills"
+    ("gem quality", "AMPLIFIES", 3, re.compile(r"\bgem quality grants\b[^.]{0,40}additional effect", re.I)),
+    ("gem quality", "AMPLIFIES", 1.5, re.compile(r"\+\d+% to quality of (?:all )?(?:[\w-]+ ){0,3}(?:skills?|gems)\b", re.I)),
+    # PoE 2, Gemling: "per Connected Red Support Gem", "per 3 Blue Support Gems Socketed", "colour of Socketed Support"
+    ("support gems", "READS", 2,
+     re.compile(r"\b(?:per|for each) (?:\d+ )?(?:connected |socketed )?(?:colour of )?(?:socketed )?(?:red |green |blue )?support gems?\b", re.I)),
+    # PoE 2, Gemling Essence of Virtue: "Grants Skill: Virtuous Barrier" (skill de graça, sem slot de gem)
+    ("granted skill", "UNLOCKS", 2, re.compile(r"^grants skill: ", re.I)),
+]
+MAGNITUDE_CATEGORY = {"damage as extra": "stat", "additional projectiles": "stat", "resistance overcap": "stat",
+                      "ailment types": "stat", "gem levels": "stat", "gem quality": "stat", "support gems": "entity",
+                      "granted skill": "entity"}
+CATEGORY.update(MAGNITUDE_CATEGORY)
+
 # Atalhos aceitos no filtro `kinds` das ferramentas: JEWELS = só joias, AUGMENTS = só augments de item.
 KIND_GROUPS = {
     "JEWELS": JEWEL_KINDS, "AUGMENTS": AUGMENT_KINDS, "ITEMS": ITEM_KINDS,
@@ -538,6 +574,9 @@ def edges_for(record: dict) -> list[dict]:
     edges = []
     for original in record["originals"]:
         clause, spans = parse_markup(original)
+        for family, verb, score, rx in MAGNITUDE:
+            if rx.search(clause):
+                edges.append({"resource": family, "verb": verb, "text": clause, "fixed": score})
         found = mentions(clause, spans, plain_tags=record.get("kind") in ITEM_KINDS)
         for resource, s, e in found:
             for verb in verbs_for(clause, s, e, resource) or ["AMBIGUOUS"]:
@@ -653,7 +692,9 @@ class EconomyMap:
         if axis == "acumulo":
             return 0
         more = bool(MORE_RX.search(e["text"]))
-        if e["verb"] == "REPLICATES":
+        if "fixed" in e:  # família de MAGNITUDE: score pela regra
+            base = e["fixed"]
+        elif e["verb"] == "REPLICATES":
             base = 5
         elif e["verb"] == "READS" and more:
             base = 4

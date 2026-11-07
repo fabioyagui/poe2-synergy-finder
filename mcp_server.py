@@ -82,7 +82,8 @@ def _request(url: str, path: str, body: dict | None = None) -> Any:
         })
     req = urllib.request.Request(full, data=data, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=180) as response:
+        # 600 s: lab usage sem cache leva minutos.
+        with urllib.request.urlopen(req, timeout=600) as response:
             raw = response.read()
     except urllib.error.HTTPError as exc:
         try:
@@ -867,12 +868,16 @@ TOOLS = {
             "{reset:true}; sem argumentos mostra a ativa; mod que o PoB não entende é recusado; todo resultado sai marcado hipotese "
             "(estimativa das notas, não o PoB do patch; skill, keystone ou ascendência nova não é simulável assim) · "
             "patch_diff {antes?, depois?, name?} compara o catálogo RePoE importado na base com o snapshot baixado mais recente "
-            "(gems novas/removidas/alteradas, nós da árvore) e grava o relatório em builds-teste/patch/. "
+            "(gems novas/removidas/alteradas, nós da árvore) e grava o relatório em builds-teste/patch/ · "
+            "usage {classe, skill?, amostra?:10 (sem cache, dezenas de segundos por personagem), liga?, momento?:'day-3'|'week-4', config?} "
+            "uso real do poe.ninja × teste de remoção no PoB × nota do mapa: tira cada unique, joia, nó de ascendência e keystone de "
+            "builds reais e mede DPS/EHP; marca 'lacuna do leitor' (muito usado, pesa, mapa 0) e 'valor fora do PoB' (muito usado, "
+            "mede ~0); amostra com viés de topo; relatório em builds-teste/uso/. "
             "Números são do PoB nas condições configuradas, não desempenho no jogo."),
         "schema": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "description": "open, status, close, add_skill, equip, config, config_options, allocate, select, stats, tree_search, gear_search, export, stages, judge, hypothesis, patch_diff"},
+                "action": {"type": "string", "description": "open, status, close, add_skill, equip, config, config_options, allocate, select, stats, tree_search, gear_search, export, stages, judge, hypothesis, patch_diff, usage"},
                 "params": {"type": "object", "description": "Parâmetros da ação (ver descrição)."},
             },
             "required": ["action"],
