@@ -363,10 +363,15 @@ MAGNITUDE = [
      re.compile(r"\b(?:per|for each) (?:\d+ )?(?:connected |socketed )?(?:colour of )?(?:socketed )?(?:red |green |blue )?support gems?\b", re.I)),
     # PoE 2, Gemling Essence of Virtue: "Grants Skill: Virtuous Barrier" (skill de graça, sem slot de gem)
     ("granted skill", "UNLOCKS", 2, re.compile(r"^grants skill: ", re.I)),
+    # PoE 1 (ITEM_GRANTS) -> PoE 2: Megalomaniac (31% dos Gemlings na semana 4 da Runes of Aldur) "Allocates <notável>"
+    # (o "can be allocated without being connected" das joias de raio já vira "passive UNLOCKS" pelas regras)
+    ("allocated node", "UNLOCKS", 4, re.compile(r"^allocates? ", re.I)),
+    # PoE 1 (ITEM_GRANTS) -> PoE 2: Kalandra's Touch (30% dos mesmos Gemlings, −19% DPS) "Reflects opposite Ring"
+    ("mirrored item", "REPLICATES", 3, re.compile(r"^reflects (?:the )?(?:opposite|other) ", re.I)),
 ]
 MAGNITUDE_CATEGORY = {"damage as extra": "stat", "additional projectiles": "stat", "resistance overcap": "stat",
                       "ailment types": "stat", "gem levels": "stat", "gem quality": "stat", "support gems": "entity",
-                      "granted skill": "entity"}
+                      "granted skill": "entity", "allocated node": "item", "mirrored item": "item"}
 CATEGORY.update(MAGNITUDE_CATEGORY)
 
 # Atalhos aceitos no filtro `kinds` das ferramentas: JEWELS = só joias, AUGMENTS = só augments de item.
@@ -414,9 +419,15 @@ def records_from_uniques(uniques) -> list[dict]:
         jewel = base in JEWEL_BASES or base.startswith("Time-Lost")
         kind = "JEWEL_UNIQUE" if jewel else "UNIQUE"
         tags = [u["league"]] if u.get("league") else []
-        out.append(_item_record(f'unique:{u["name"]}', kind, u["name"], base, u["lines"], tags,
-                                "Uniques/jewel.lua" if jewel else "Uniques/*.lua",
-                                radius=(u.get("radius") or "") if jewel else ""))
+        record = _item_record(f'unique:{u["name"]}', kind, u["name"], base, u["lines"], tags,
+                              "Uniques/Special/Generated.lua" if u.get("choices") else
+                              "Uniques/jewel.lua" if jewel else "Uniques/*.lua",
+                              radius=(u.get("radius") or "") if jewel else "")
+        if u.get("choices"):
+            # Unique gerado por código (Prism of Belief, Megalomaniac): as linhas são as escolhas possíveis, não um
+            # item só; o lab usage não o conta como "nota alta, uso baixo".
+            record["choices"] = u["choices"]
+        out.append(record)
     return out
 
 

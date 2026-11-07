@@ -247,8 +247,15 @@ function M.suggest(params)
     sample_order='Menor custo de caminho, depois ID; ranking apenas entre os caminhos avaliados.',
     control_differences=control,point_budget_verified=false,tree_version=spec.treeVersion,allocation_unchanged=true}
 end
+-- Uniques que o PoB monta por código em Data/Uniques/Special/Generated.lua (Prism of Belief, Heart of the Well,
+-- Megalomaniac...): só existem com os dados carregados, então o mapa de economia os lê daqui.
+function M.generated_uniques()
+  local out={}
+  for _,text in ipairs((data.uniques and data.uniques.generated) or {}) do out[#out+1]=text end
+  return {texts=out}
+end
 function M.install(handlers)
   local function wrap(fn)return function(params)local ok,r=pcall(fn,params or {});if not ok then return {ok=false,error=tostring(r)}end;return {ok=true,result=r}end end
-  handlers.sf_workbench_visual=wrap(M.visual);handlers.sf_workbench_calcs=wrap(M.calcs);handlers.sf_workbench_suggest=wrap(M.suggest)
+  handlers.sf_workbench_visual=wrap(M.visual);handlers.sf_workbench_calcs=wrap(M.calcs);handlers.sf_workbench_suggest=wrap(M.suggest);handlers.sf_generated_uniques=wrap(M.generated_uniques)
 end
 return M

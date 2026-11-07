@@ -84,17 +84,38 @@ def without_node(xml: str, node: str) -> str:
 
 
 @lru_cache(maxsize=4)
-def node_index(tree_version: str = "") -> dict:
-    """{id: (tipo, nome)} dos nós de ascendência (notáveis) e keystones da árvore instalada (camada por cima)."""
+def _tree(tree_version: str = "") -> dict:
+    """tree.json do PoB instalado (camada por cima), na versão pedida se existir."""
     from src.tree_importer import pob_tree_file
     path = pob_tree_file()
     if tree_version and path:
         from src.pob_layer import resolve
         candidate = resolve(path.parents[2], f"TreeData/{tree_version}/tree.json")
         path = candidate if candidate.is_file() else path
-    if not path:
+    return json.loads(path.read_text(encoding="utf-8")) if path else {}
+
+
+@lru_cache(maxsize=4)
+def choice_options(tree_version: str = "") -> dict:
+    """{nome do nó de escolha: [nomes das opções]}. O nó de escolha (Implanted Gems) não tem texto: o poder é o da
+    opção escolhida (Neurological/Bolstering/Motoric Implants)."""
+    nodes = _tree(tree_version).get("nodes") or {}
+    out = {}
+    for node in nodes.values():
+        if isinstance(node, dict) and node.get("isMultipleChoice") and node.get("name"):
+            opts = [nodes.get(str(c.get("id")), {}) for c in node.get("connections") or []]
+            names = [o["name"] for o in opts if o.get("isMultipleChoiceOption") and o.get("name")]
+            if names:
+                out[node["name"]] = names
+    return out
+
+
+@lru_cache(maxsize=4)
+def node_index(tree_version: str = "") -> dict:
+    """{id: (tipo, nome)} dos nós de ascendência (notáveis) e keystones da árvore instalada (camada por cima)."""
+    tree = _tree(tree_version)
+    if not tree:
         return {}
-    tree = json.loads(path.read_text(encoding="utf-8"))
     out = {}
     for key, node in (tree.get("nodes") or {}).items():
         if not isinstance(node, dict) or not node.get("name"):
@@ -224,6 +245,10 @@ def run(classe: str, skill: str = "", amostra: int = 10, league: str | None = No
     use = {n: c / total for n, c in found["dims"].get("items", [])}
     use.update({n: c / total for n, c in found["dims"].get("keypassives", [])})
     scores = map_scores()
+    for parent, options in choice_options().items():
+        if not scores.get(parent, (0, []))[0]:
+            best = max((scores.get(o, (0, [])) for o in options), key=lambda x: x[0], default=(0, []))
+            scores[parent] = (best[0], [f"escolha:{t}" for t in best[1]])
     groups = defaultdict(list)
     for r in rows:
         groups[r["item"]].append(r)

@@ -537,5 +537,38 @@ class MagnitudeTests(unittest.TestCase):
         self.assertFalse({k for k in self.edges("20% increased Quality of Flasks") if k[0] == "gem quality"})
 
 
+class UniqueReaderGapTests(unittest.TestCase):
+    """Lacunas do leitor achadas pelo lab usage nos Gemlings (Runes of Aldur, semana 4)."""
+
+    def test_unique_with_wordy_mods_keeps_its_lines(self):
+        from src.lab import data
+        text = "\n".join(["[[", "Kalandra's Touch", "Ring", "Reflects opposite Ring", "Mirrored", "]],[[", "Alpha",
+                          "{variant:1}Iron Ring", "{variant:2}Gold Ring", "Variant: Old", "Variant: Current",
+                          "+10 to Strength", "]]"])
+        got = {u["name"]: u for u in data.parse_uniques_text(text)}
+        self.assertEqual(got["Kalandra's Touch"]["base"], "Ring")
+        self.assertEqual(got["Kalandra's Touch"]["lines"], ["Reflects opposite Ring", "Mirrored"])
+        self.assertEqual(got["Alpha"]["base"], "Gold Ring")  # base por variante continua valendo
+
+    def test_generated_unique_keeps_every_choice(self):
+        from src.lab import data
+        text = "\n".join(["Prism of Belief", "Diamond", "Variant: Arc", "Variant: Spark",
+                          "{variant:1}+3 to Level of all Arc Skills", "{variant:2}+3 to Level of all Spark Skills",
+                          "Corrupted"])
+        u = data.parse_generated_unique(text)
+        self.assertEqual((u["name"], u["base"], u["choices"]), ("Prism of Belief", "Diamond", 2))
+        self.assertEqual(u["lines"], ["+3 to Level of all Arc Skills", "+3 to Level of all Spark Skills"])
+        record = economy.records_from_uniques([u])[0]
+        self.assertEqual(record["choices"], 2)
+        self.assertIn(("gem levels", "AMPLIFIES"), {(e["resource"], e["verb"]) for e in economy.edges_for(record)})
+
+    def test_item_grant_families_from_poe1(self):
+        def edges(line):
+            r = economy.records_from_uniques([{"name": "X", "base": "Ring", "league": "", "lines": [line]}])[0]
+            return {(e["resource"], e["verb"]) for e in economy.edges_for(r)}
+        self.assertIn(("mirrored item", "REPLICATES"), edges("Reflects opposite Ring"))
+        self.assertIn(("allocated node", "UNLOCKS"), edges("Allocates Heavy Buffer"))
+
+
 if __name__ == "__main__":
     unittest.main()

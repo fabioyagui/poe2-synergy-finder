@@ -293,11 +293,15 @@ def parse_uniques_text(text: str) -> list[dict]:
             chosen = next((v for k, v in tags if k == "variant"), None)
             return chosen is None or not variants or str(variants) in [x.strip() for x in chosen.split(",")]
 
-        # A base pode mudar por variante: "{variant:1}Ironclad Vestments" / "{variant:2}Gilded Vest".
+        # A base pode mudar por variante: "{variant:1}Ironclad Vestments" / "{variant:2}Gilded Vest". Depois da
+        # primeira, só conta como base uma linha com {variant:...}: em Kalandra's Touch ("Ring", "Reflects opposite
+        # Ring", "Mirrored") as linhas sem número são mods, e o item sumia do mapa.
         bases = []
-        for l in rest:
+        for i, l in enumerate(rest):
             clean = _UNIQUE_PREFIX.sub("", l).strip()
             if _UNIQUE_META.match(clean) or re.search(r"[\d%+]", clean):
+                break
+            if i and not l.startswith("{variant:"):
                 break
             bases.append((current(l), clean))
         base = next((b for ok, b in bases if ok), bases[0][1] if bases else "")
@@ -317,14 +321,64 @@ def parse_uniques_text(text: str) -> list[dict]:
 
 @lru_cache(maxsize=None)
 def load_uniques() -> tuple:
-    """Todos os uniques do PoB (sem os gerados/de corrida da pasta Special)."""
+    """Todos os uniques do PoB, inclusive os gerados por código (Special/Generated.lua), sem os de corrida."""
     out = []
     for f in data_files("Uniques"):
         out.extend(parse_uniques_text(f.read_text(encoding="utf-8")))
     new = data_file("Uniques", "Special", "New.lua")
     if new.exists():
         out.extend(parse_uniques_text(new.read_text(encoding="utf-8")))
+    known = {u["name"] for u in out}
+    out.extend(u for u in generated_uniques() if u["name"] not in known)
     return tuple(out)
+
+
+GENERATED_CACHE = storage.DATA / "cache" / "pob" / "generated_uniques.json"
+
+
+def parse_generated_unique(text: str) -> dict | None:
+    """Texto de item de um unique gerado -> {name, base, league, lines, radius, choices}. As linhas de todas as
+    variantes ficam (Prism of Belief tem uma por skill): o mapa lê cada escolha; `choices` diz quantas são."""
+    raw = [l.rstrip() for l in text.splitlines() if l.strip()]
+    if len(raw) < 2:
+        return None
+    name, base, rest = raw[0], _UNIQUE_PREFIX.sub("", raw[1]).strip(), raw[2:]
+    variants = sum(1 for l in rest if l.startswith("Variant:"))
+    radius = next((l.split(":", 1)[1].strip() for l in rest if l.startswith("Radius:")), "")
+    lines = []
+    for l in rest:
+        clean = _UNIQUE_PREFIX.sub("", l).strip()
+        if clean and not _UNIQUE_META.match(clean):
+            lines.append(max_roll(clean))
+    if not lines:
+        return None
+    return {"name": name, "base": base, "league": "", "lines": list(dict.fromkeys(lines)), "radius": radius,
+            "choices": variants}
+
+
+def generated_uniques(refresh: bool = False) -> list[dict]:
+    """Uniques de Data/Uniques/Special/Generated.lua. Só existem com os dados do PoB carregados, então vêm do motor
+    (`sf_generated_uniques`) e ficam em cache por versão do PoB e da camada pob-layer. Sem motor, lista vazia."""
+    from ..pob_layer import status as layer_status
+    src = pob_data_dir().parent
+    key = {"pob": (src.parent / "manifest.xml").read_text(encoding="utf-8")[:400] if (src.parent / "manifest.xml").exists() else "",
+           "camada": json.dumps(layer_status().get("dados") or {}, sort_keys=True)[:400]}
+    if not refresh and GENERATED_CACHE.exists():
+        try:
+            cached = json.loads(GENERATED_CACHE.read_text(encoding="utf-8"))
+            if cached.get("key") == key:
+                return [u for u in map(parse_generated_unique, cached["texts"]) if u]
+        except (OSError, ValueError):
+            pass
+    try:
+        from .engine import Lab
+        with Lab() as lab:
+            texts = (lab.req("sf_generated_uniques").get("result") or {}).get("texts") or []
+    except Exception:
+        return []
+    GENERATED_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    GENERATED_CACHE.write_text(json.dumps({"key": key, "texts": texts}, ensure_ascii=False), encoding="utf-8")
+    return [u for u in map(parse_generated_unique, texts) if u]
 
 
 @lru_cache(maxsize=None)
