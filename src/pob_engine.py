@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 import io
 import os
+import re
 from pathlib import Path
 import queue
 import shutil
+import stat
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -1401,6 +1404,124 @@ end
     return text[:pos] + "\n" + lua + text[pos:]
 
 
+_OVERLAY_SUFFIX_RE = re.compile(r"^pob-api-v0126-(\d+)-(\d+)$")
+
+
+def _pid_alive(pid: int, created_ns: int | None = None) -> bool:
+    """True when the process that may own a copy still exists.
+
+    created_ns (the time_ns in the copy's name): on Windows a process with this pid that started after the copy
+    was made is a reused pid, so the owner is gone. When the start time cannot be read, the copy is kept.
+    """
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return True
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            # 5 = access denied: the process exists but belongs to someone else.
+            return kernel32.GetLastError() == 5
+        try:
+            code = wintypes.DWORD()
+            if kernel32.GetExitCodeProcess(handle, ctypes.byref(code)) and code.value != 259:  # STILL_ACTIVE
+                return False
+            if created_ns is not None:
+                times = [wintypes.FILETIME() for _ in range(4)]
+                if kernel32.GetProcessTimes(handle, *(ctypes.byref(t) for t in times)):
+                    ft = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+                    started_ns = (ft - 116444736000000000) * 100
+                    # 2 s of slack: the copy is made right before LuaJIT starts, never before Python.
+                    if started_ns > created_ns + 2_000_000_000:
+                        return False
+            return True
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _rmtree_writable(path: Path) -> None:
+    """shutil.rmtree that clears READONLY and retries once per entry; other failures are ignored."""
+    def retry(func, target, _exc):
+        try:
+            os.chmod(target, stat.S_IWRITE)
+            func(target)
+        except OSError:
+            pass
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=retry)
+    else:
+        shutil.rmtree(path, onerror=retry)
+
+
+def _make_tree_writable(root: Path) -> None:
+    """Drop the READONLY attribute copied from the source bridge, so the copy can be deleted later."""
+    for dirpath, _dirs, _files in os.walk(root):
+        try:
+            os.chmod(dirpath, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+        except OSError:
+            pass
+
+
+def _remove_overlay(path: Path | None, retries: int = 5, delay: float = 0.2) -> bool:
+    """Delete a pid-suffixed overlay; never the stable pob-api-v0126 or anything else. Failure is tolerated."""
+    if not path or not _OVERLAY_SUFFIX_RE.match(path.name):
+        return False
+    # Folders copied from a OneDrive bridge keep the READONLY attribute and RemoveDirectoryW refuses them
+    # ("Access is denied"): the files go, the folders stay. Clear the flag and retry; a handle still held by a
+    # scanner can refuse for a moment, so a short retry follows.
+    for attempt in range(retries + 1):
+        _rmtree_writable(path)
+        if not path.exists():
+            return True
+        if attempt < retries:
+            time.sleep(delay)
+    return False
+
+
+def _cleanup_orphan_overlays(parent: Path | None = None) -> list[str]:
+    """Remove pob-api-v0126-<pid>-<ns> copies whose process no longer exists.
+
+    Copies of a live process (this one included: another EngineClient may be using it) stay.
+    OneDrive or a stuck handle can still refuse the delete (WinError 5); that copy is retried next start.
+    """
+    parent = parent or BRIDGE_OVERLAY_DIR.parent
+    try:
+        entries = list(parent.iterdir())
+    except OSError:
+        return []
+    pending = []
+    for entry in entries:
+        m = _OVERLAY_SUFFIX_RE.match(entry.name)
+        if m and entry.is_dir() and not _pid_alive(int(m.group(1)), int(m.group(2))):
+            pending.append(entry)
+    removed = []
+    # One pass over all, then one short wait for the folders Windows refused a moment ago (no per-folder sleep:
+    # hundreds of orphans must not stall the start).
+    for attempt in range(3):
+        left = []
+        for entry in pending:
+            (removed if _remove_overlay(entry, retries=0) else left).append(entry)
+        pending = left
+        if not pending or attempt == 2:
+            break
+        time.sleep(0.3)
+    return sorted(e.name for e in removed)
+
+
 def _prepare_bridge_overlay(source_bridge: Path) -> Path:
     """Patch a private bridge copy in machine-local storage.
 
@@ -1445,6 +1566,7 @@ def _prepare_bridge_overlay(source_bridge: Path) -> Path:
             shutil.copytree(source_bridge, target)
         else:
             raise
+    _make_tree_writable(target)
 
     buildops = target / "API" / "BuildOps.lua"
     patched = _patch_buildops_exact_support_compat(
@@ -1690,6 +1812,8 @@ class EngineClient:
         self.lock = threading.RLock()
         self.ready_meta = None
         self.config = None
+        # Bridge copy used by this client's process; a pid-suffixed one is deleted on stop.
+        self.runtime_bridge: Path | None = None
 
     def is_running(self):
         return bool(self.proc and self.proc.poll() is None)
@@ -1752,7 +1876,13 @@ class EngineClient:
             bridge = _expand(cfg["bridge_path"])
             assert lua and pob and bridge
 
+            # Copy left by a previous start of this client whose process died (restart_if_dead), then orphans of
+            # processes that no longer exist.
+            _remove_overlay(self.runtime_bridge)
+            self.runtime_bridge = None
+            _cleanup_orphan_overlays()
             runtime_bridge = _prepare_bridge_overlay(bridge)
+            self.runtime_bridge = runtime_bridge
             bootstrap = runtime_bridge / "bootstrap.lua"
             if not (pob / "HeadlessWrapper.lua").exists():
                 bootstrap = _make_bootstrap_shim(runtime_bridge, pob)
@@ -2146,8 +2276,14 @@ class EngineClient:
                         self.proc.kill()
                     except Exception:
                         pass
+            try:
+                self.proc.wait(timeout=3)  # LuaJIT must release the bridge files before the copy is deleted
+            except Exception:
+                pass
             self.proc = None
             self.ready_meta = None
+            # A copy that refuses the delete (WinError 5) stays referenced; the next start() retries it.
+            _remove_overlay(self.runtime_bridge)
             return {"running": False}
 
     def status(self):
