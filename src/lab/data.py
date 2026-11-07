@@ -35,6 +35,22 @@ def pob_data_dir() -> Path:
     return src / "Data"
 
 
+def data_file(*parts: str) -> Path:
+    """Arquivo de Data/ do PoB com a camada pob-layer por cima (dados regenerados do cliente, se houver)."""
+    from ..pob_layer import resolve
+    return resolve(pob_data_dir().parent, "/".join(("Data",) + parts))
+
+
+def data_files(folder: str, suffix: str = ".lua") -> list[Path]:
+    """Arquivos de Data/<folder>/ do PoB e da camada (a camada vence no mesmo nome), em ordem de nome."""
+    from ..pob_layer import LAYER_DIR
+    names = set()
+    for base in (pob_data_dir() / folder, LAYER_DIR / "Data" / folder):
+        if base.is_dir():
+            names.update(f for f in os.listdir(base) if f.endswith(suffix))
+    return [data_file(folder, n) for n in sorted(names)]
+
+
 def max_roll(text: str) -> str:
     """'(5-8)' -> '8': o teto da faixa."""
     return re.sub(r"\((-?[\d.]+)-(-?[\d.]+)\)", lambda m: m.group(2), text)
@@ -45,7 +61,7 @@ def load_bases(file: str, include_league: bool = False) -> tuple:
     """Bases de Data/Bases/<file>. include_league=True traz também as de liga (`liga`) e as ocultas no PoB
     (`oculta`: hidden = true), que a campanha não dá; o juiz precisa delas para reconhecer o item e
     classificá-lo como degrau 4."""
-    text = (pob_data_dir() / "Bases" / file).read_text(encoding="utf-8")
+    text = data_file("Bases", file).read_text(encoding="utf-8")
     out = []
     for m in re.finditer(r'itemBases\["([^"]+)"\] = \{(.*?)\n\}', text, re.S):
         name, body = m.group(1), m.group(2)
@@ -75,8 +91,8 @@ def load_bases(file: str, include_league: bool = False) -> tuple:
 def all_bases() -> dict:
     """Todas as bases de Data/Bases/*.lua por nome, inclusive as de liga (sem frascos)."""
     out = {}
-    for f in sorted(os.listdir(pob_data_dir() / "Bases")):
-        if f.endswith(".lua") and f not in ("flask.lua",):
+    for f in (p.name for p in data_files("Bases")):
+        if f not in ("flask.lua",):
             for b in load_bases(f, include_league=True):
                 out.setdefault(b["name"], {**b, "file": f})
     return out
@@ -92,7 +108,7 @@ def load_affixes() -> tuple:
     Cada mod: {id, type, lines, level (item level mínimo), group, weights, tags}. Mods com peso 0 em toda
     base (essência, corrupção) ficam de fora: não saem de drop nem de craft comum.
     """
-    text = (pob_data_dir() / "ModItem.lua").read_text(encoding="utf-8")
+    text = data_file("ModItem.lua").read_text(encoding="utf-8")
     mods = []
     for m in re.finditer(r'\n\t\["([^"]+)"\] = \{ type = "(Prefix|Suffix)", affix = "[^"]*", (.*?), statOrder = .*?level = (\d+), '
                          r'group = "([^"]+)", weightKey = \{(.*?)\}, weightVal = \{(.*?)\}, modTags = \{(.*?)\}', text):
@@ -116,9 +132,8 @@ def _gems_by_name() -> dict[str, dict]:
 
     levels = {nível da gem: nível de personagem exigido}, do levelRequirement do efeito concedido.
     """
-    data = pob_data_dir()
     reqs = {}
-    for f in (data / "Skills").glob("*.lua"):
+    for f in data_files("Skills"):
         text = f.read_text(encoding="utf-8")
         for m in re.finditer(r'skills\["([^"]+)"\] = \{(.*?)\n\}', text, re.S):
             lv = re.search(r"\n\tlevels = \{(.*)", m.group(2), re.S)
@@ -127,7 +142,7 @@ def _gems_by_name() -> dict[str, dict]:
                 if table:
                     reqs[m.group(1)] = table
     out = {}
-    text = (data / "Gems.lua").read_text(encoding="utf-8")
+    text = data_file("Gems.lua").read_text(encoding="utf-8")
     for body in re.findall(r'\n\t\["Metadata/Items/Gems?/[^"]+"\] = \{(.*?)\n\t\}', text, re.S):
         name = re.search(r'\n\t\tname = "([^"]+)"', body)
         effect = re.search(r'grantedEffectId = "([^"]+)"', body)
@@ -189,7 +204,7 @@ def weapon_for(family: str, level: int) -> str | None:
 @lru_cache(maxsize=None)
 def load_mods(file: str = "ModItem.lua") -> tuple:
     """Afixos de um arquivo Data/Mod*.lua do PoB (ModItem.lua por padrão; ModJewel.lua para joias)."""
-    return parse_mods_text((pob_data_dir() / file).read_text(encoding="utf-8"))
+    return parse_mods_text(data_file(file).read_text(encoding="utf-8"))
 
 
 def parse_mods_text(text: str) -> tuple:
@@ -303,12 +318,10 @@ def parse_uniques_text(text: str) -> list[dict]:
 @lru_cache(maxsize=None)
 def load_uniques() -> tuple:
     """Todos os uniques do PoB (sem os gerados/de corrida da pasta Special)."""
-    folder = pob_data_dir() / "Uniques"
     out = []
-    for f in sorted(os.listdir(folder)):
-        if f.endswith(".lua"):
-            out.extend(parse_uniques_text((folder / f).read_text(encoding="utf-8")))
-    new = folder / "Special" / "New.lua"
+    for f in data_files("Uniques"):
+        out.extend(parse_uniques_text(f.read_text(encoding="utf-8")))
+    new = data_file("Uniques", "Special", "New.lua")
     if new.exists():
         out.extend(parse_uniques_text(new.read_text(encoding="utf-8")))
     return tuple(out)
@@ -317,8 +330,7 @@ def load_uniques() -> tuple:
 @lru_cache(maxsize=None)
 def quality_effects() -> dict[str, dict]:
     """Por gem: efeito normal e efeito adicional de qualidade (Advanced Thaumaturgy), por 1% de qualidade."""
-    data = pob_data_dir()
-    gems = (data / "Gems.lua").read_text(encoding="utf-8")
+    gems = data_file("Gems.lua").read_text(encoding="utf-8")
     granted = {}
     for m in re.finditer(r'\["Metadata/Items/Gems?/[^"]+"\] = \{(.*?)\n\t\},', gems, re.S):
         body = m.group(1)
@@ -328,10 +340,8 @@ def quality_effects() -> dict[str, dict]:
         if n and ge:
             granted[ge.group(1)] = (n.group(1), int(t.group(1)) if t else 0)
     out = {}
-    for f in sorted(os.listdir(data / "Skills")):
-        if not f.endswith(".lua"):
-            continue
-        text = (data / "Skills" / f).read_text(encoding="utf-8")
+    for f in data_files("Skills"):
+        text = f.read_text(encoding="utf-8")
         for sid, body in re.findall(r'skills\["([^"]+)"\] = \{(.*?)\n\tlevels = ', text, re.S):
             if sid not in granted:
                 continue
@@ -365,7 +375,7 @@ def parse_augments_text(text: str) -> list[dict]:
 
 @lru_cache(maxsize=None)
 def load_augments() -> tuple:
-    return tuple(parse_augments_text((pob_data_dir() / "ModRunes.lua").read_text(encoding="utf-8")))
+    return tuple(parse_augments_text(data_file("ModRunes.lua").read_text(encoding="utf-8")))
 
 
 def parse_timeless_text(text: str) -> list[dict]:
@@ -391,5 +401,5 @@ def parse_timeless_text(text: str) -> list[dict]:
 
 @lru_cache(maxsize=None)
 def load_timeless() -> tuple:
-    path = pob_data_dir() / "TimelessJewelData" / "LegionPassives.lua"
+    path = data_file("TimelessJewelData", "LegionPassives.lua")
     return tuple(parse_timeless_text(path.read_text(encoding="utf-8")))

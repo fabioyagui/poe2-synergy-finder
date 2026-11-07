@@ -32,13 +32,15 @@ def pob_tree_file(pob_src=None):
         except Exception:return None
     if not pob_src:return None
     pob_src=Path(pob_src)
+    from .pob_layer import resolve  # camada pob-layer por cima do PoB instalado
     versions=[]
     try:
-        m=re.search(r'treeVersionList\s*=\s*\{([^}]*)\}',(pob_src/'GameVersions.lua').read_text(encoding='utf-8'))
-        if m:versions=re.findall(r'"([^"]+)"',m.group(1))
+        text=resolve(pob_src,'GameVersions.lua').read_text(encoding='utf-8')
+        versions=re.findall(r'"([^"]+)"',(re.search(r'treeVersionList\s*=\s*\{([^}]*)\}',text) or [None,''])[1])
+        versions+=re.findall(r'table\.insert\(treeVersionList,\s*"([^"]+)"\)',text)
     except OSError:pass
     for v in reversed(versions):
-        p=pob_src/'TreeData'/v/'tree.json'
+        p=resolve(pob_src,f'TreeData/{v}/tree.json')
         if p.is_file():return p
     return None
 

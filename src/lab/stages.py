@@ -76,7 +76,7 @@ def acts_from_quests(text: str) -> tuple:
 def load_acts() -> tuple:
     """Tabela (nível, pontos de missão) do PoB instalado, ou a cópia local."""
     try:
-        found = acts_from_quests((data.pob_data_dir() / "QuestRewards.lua").read_text(encoding="utf-8"))
+        found = acts_from_quests(data.data_file("QuestRewards.lua").read_text(encoding="utf-8"))
     except Exception:
         return ACTS_FALLBACK
     return found if len(found) >= 4 else ACTS_FALLBACK

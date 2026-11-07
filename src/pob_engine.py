@@ -1756,6 +1756,13 @@ class EngineClient:
             bootstrap = runtime_bridge / "bootstrap.lua"
             if not (pob / "HeadlessWrapper.lua").exists():
                 bootstrap = _make_bootstrap_shim(runtime_bridge, pob)
+            # Camada pob-layer (árvore nova do export da GGG): o motor lê dela antes do PoB instalado, que não é
+            # alterado. O bootstrap é a cópia descartável deste início.
+            from . import pob_layer
+            prelude = pob_layer.lua_prelude()
+            text = bootstrap.read_text(encoding="utf-8")
+            if prelude and pob_layer.PRELUDE_MARK not in text:
+                bootstrap.write_text(prelude + text, encoding="utf-8")
 
             env = os.environ.copy()
 
