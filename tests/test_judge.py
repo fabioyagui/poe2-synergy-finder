@@ -108,6 +108,8 @@ class TablesAndRecords(unittest.TestCase):
 
     def test_targets_and_item_level(self):
         self.assertEqual(judge.meta_for(15)["resistencia"], 0)
+        self.assertEqual(judge.meta_for(51)["resistencia"], 0)  # campanha não cobra resistência (autor, 2026-11-05)
+        self.assertEqual([judge.campaign_gear(l) for l in (1, 15, 16, 33, 46, 64)], [(3, 1), (3, 1), (5, 1), (10, 1), (10, 2), (10, 2)])
         self.assertEqual(judge.meta_for(65), {"desde": 65, "resistencia": 75, "vida_es": 2800})
         self.assertEqual(judge.max_item_level(30), 32)
         self.assertEqual(judge.max_item_level(90), 82)
@@ -155,6 +157,9 @@ class StageRules(unittest.TestCase):
         early = verdict(build_xml(level=20, gems=[(None, [("Wolf Pack", 6)])], config='<Input name="resistancePenalty" number="-10"/>'),
                         stats={"Life": 600})
         self.assertTrue(any("tier 8" in f["motivo"] for f in early["reprovas"] if f["regra"] == "gem"))
+        self.assertFalse([f for f in verdict(build_xml(level=20, config='<Input name="resistancePenalty" number="-10"/>'),
+                                             stats={"FireResist": -20})["reprovas"] if f["regra"] == "resistência"])
+        self.assertTrue([f for f in verdict(build_xml(level=70), stats={"FireResist": 40})["reprovas"] if f["regra"] == "resistência"])
         low = verdict(build_xml(level=70, gems=[(None, [("Wolf Pack", 5)])]))
         self.assertTrue(any("abaixo do tier 8" in f["motivo"] for f in low["reprovas"]))
         high = verdict(build_xml(level=70, gems=[(None, [("Wolf Pack", 18)])]))
@@ -198,7 +203,7 @@ class StageRules(unittest.TestCase):
         for rule in ("joia", "atributos", "mana", "config", "maldições", "vida"):
             self.assertIn(rule, rules)
         motivos = " ".join(f["motivo"] for f in v["reprovas"])
-        self.assertIn("penalidade de resistência -60; a faixa do L30 é -20", motivos)
+        self.assertIn("penalidade de resistência -60; a faixa do L30 é -10", motivos)
         self.assertIn("usePowerCharges ligado na config sem produtor", motivos)
         self.assertEqual(v["trilha"], "campanha")
         self.assertEqual(verdict(xml.replace('level="30"', 'level="21"'), stats=stats, tree=tree, allocated=[1, 2, 3, 4, 5])["medidas"]["ascendencia"], "2/0")

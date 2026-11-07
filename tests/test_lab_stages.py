@@ -73,10 +73,11 @@ class PureTests(unittest.TestCase):
         self.assertEqual(stages.act_index(30, ACTS), 3)
 
     def test_resistance_penalty_by_act_and_maps(self):
-        self.assertEqual([stages.resistance_penalty(l, ACTS) for l in (1, 12, 28, 44, 51, 62, 64, 65, 90)],
-                         [0, -10, -20, -30, -40, -50, -50, -60, -60])
-        cfg = stages.stage_config(45, ACTS)
-        self.assertEqual((cfg["enemyLevel"], cfg["resistancePenalty"]), (45, -30))
+        # Ato 2 área 16, Ato 3 33, Ato 4 46, Interlúdios 54 e 60 (RePoE world_areas + wiki do PoE 2)
+        self.assertEqual([stages.resistance_penalty(l, ACTS) for l in (1, 15, 16, 32, 33, 46, 54, 59, 60, 64, 65, 90)],
+                         [0, 0, -10, -10, -20, -30, -40, -40, -50, -50, -60, -60])
+        cfg = stages.stage_config(46, ACTS)
+        self.assertEqual((cfg["enemyLevel"], cfg["resistancePenalty"]), (46, -30))
 
     def test_skill_waits_for_its_tier(self):
         groups = stages.parse_gems([["Wolf Pack", "Feeding Frenzy I"], ["Explosive Spear"]])
@@ -89,6 +90,19 @@ class PureTests(unittest.TestCase):
         self.assertIsNone(at20[0][1]["tier"])  # supports não são barrados pelo tier
         # gem fora do PoB: tabela usual, sem tier
         self.assertEqual(stages.gem_plan([[("Nope", None)]], 14, lambda n: None, lambda n: None)[0][0]["level"], 5)
+        # nível que libera: skill ativa pelo tier (gema bruta nível 8 = personagem 26), support pelo nível 1
+        self.assertEqual([g["libera"] for g in at20[0]], [26, 1])
+        self.assertEqual(at20[1][0]["libera"], 1)
+        self.assertEqual(stages.unlock_level(None, 8), 26)  # tabela usual
+
+    def test_gem_blocks_swap_only_when_the_main_skill_unlocks(self):
+        raw = {"1": [["Explosive Spear"]], "12": [["Wolf Pack", "Feeding Frenzy I"]], "40": [["Wolf Pack"], ["Explosive Spear"]]}
+        blocks, avisos = stages.shift_gem_blocks(raw, TABLES.get, TIERS.get)
+        self.assertEqual(sorted(blocks), [1, 26, 40])  # Wolf Pack (tier 8) só no L26
+        self.assertEqual(avisos, ["bloco L12: Wolf Pack só libera no L26; a troca foi para o L26"])
+        self.assertEqual(stages.swap_notice(blocks, 26), "troca de skill: Wolf Pack entra neste nível (quando libera)")
+        self.assertEqual(stages.swap_notice(blocks, 40), "troca de gems: Wolf Pack continua, links e grupos mudam neste nível")
+        self.assertEqual(stages.shift_gem_blocks([["Wolf Pack"]]), (None, []))  # lista de grupos: sem plano por nível
 
     def test_parse_gems_accepts_one_group_or_many(self):
         self.assertEqual(stages.parse_gems(["Wolf Pack", {"name": "Muster", "quality": 5}]), [[("Wolf Pack", None), ("Muster", 5)]])
@@ -148,7 +162,7 @@ class PureTests(unittest.TestCase):
         self.assertIn("## L60\n", md)
         self.assertIn("## L60 respec - dano", md)
         self.assertIn("Wolf Pack 14/20q, Muster 1", md)
-        self.assertIn("~~Glacial Lance~~ (tier 7, gema bruta acima do nível 60)", md)
+        self.assertIn("~~Glacial Lance~~ (tier 7, gema bruta acima do nível 60)", md)  # sem "libera": não mostra
         self.assertIn("| TotalDPS | 1 234.5 | 2 000.0 |", md)
         self.assertIn("Nós que saem: Bond of the Owl.", md)
         self.assertIn("3 do plano fora do orçamento; ascendência: 2 nós", md)
@@ -178,6 +192,27 @@ class LoadoutTests(unittest.TestCase):
         self.assertEqual(root.find("Notes").text, "nota")
         with self.assertRaises(ValueError):
             stages.merge_loadouts([])
+
+    def test_active_only_keeps_the_active_loadout_and_its_items(self):
+        xml = ('<PathOfBuilding2><Build level="70" className="Huntress"/>'
+               '<Tree activeSpec="2"><Spec title="guia" nodes="1"/><Spec title="nosso" nodes="2">'
+               '<Sockets><Socket nodeId="9" itemId="3"/></Sockets></Spec></Tree>'
+               '<Skills activeSkillSet="7"><SkillSet id="2" title="guia"><Skill><Gem nameSpec="Explosive Spear"/></Skill></SkillSet>'
+               '<SkillSet id="7" title="nosso"><Skill><Gem nameSpec="Wolf Pack"/></Skill></SkillSet></Skills>'
+               '<Items activeItemSet="5"><Item id="1">a</Item><Item id="2">b</Item><Item id="3">joia</Item>'
+               '<ItemSet id="1" title="guia"><Slot name="Helmet" itemId="1"/></ItemSet>'
+               '<ItemSet id="5" title="nosso"><Slot name="Helmet" itemId="2"/></ItemSet></Items>'
+               '<Config activeConfigSet="1"><ConfigSet id="1" title="x"/></Config></PathOfBuilding2>')
+        out = stages.active_only(xml)
+        self.assertNotIn("Explosive Spear", out)
+        self.assertIn("Wolf Pack", out)
+        self.assertNotIn('title="guia"', out)
+        self.assertNotIn('id="1">a<', out)
+        self.assertIn('id="2">b<', out)
+        self.assertIn('id="3">joia<', out)
+        merged = stages.merge_loadouts([("L15", xml), ("L30", xml)])
+        self.assertEqual(merged.count("Wolf Pack"), 2)
+        self.assertNotIn("Explosive Spear", merged)
 
 
 class PobDataTests(unittest.TestCase):
@@ -235,8 +270,8 @@ class RealStagesTests(unittest.TestCase):
             self.assertEqual(_gem_level(l30, "Explosive Spear"), 8)
             self.assertNotIn("Glacial Lance", l15)
             self.assertIn("Glacial Lance", l30)
-            self.assertEqual(_config_value(l45, "resistancePenalty"), "-30")
-            self.assertEqual(_config_value(l30, "resistancePenalty"), "-20")
+            self.assertEqual(_config_value(l45, "resistancePenalty"), "-20")  # Ato 3 (área 33-45)
+            self.assertEqual(_config_value(l30, "resistancePenalty"), "-10")  # Ato 2 (área 16-32)
             md = (folder / "etapas.md").read_text(encoding="utf-8")
             self.assertIn("Aviso: grupo 2 (Glacial Lance) fora da etapa L15: tier 7", md)
         e15, e30, e45 = out["etapas"]

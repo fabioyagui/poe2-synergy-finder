@@ -24,6 +24,11 @@ ACTS_FALLBACK = ((1, 0), (12, 4), (28, 8), (44, 12), (51, 16), (62, 24))
 FIXED_KINDS = {"ClassStart", "AscendClassStart"}  # tipos de nó do PoB que não custam ponto
 # Nível a partir do qual a etapa é de mapas (fim da campanha 0.5, Interlúdios incluídos). [VERIFY in game]
 MAPS_LEVEL = 65
+# Penalidade de resistência elemental por nível de área: (nível a partir do qual vale, penalidade). Início de cada
+# ato pelo world_areas.json do RePoE PoE 2 (Ato 2 área 16, Ato 3 33, Ato 4 46, Interlúdios 54) e valores da wiki
+# do PoE 2 ("Maximum Resistances": −10 por ato até o Ato 4; Interlúdios por área, 54–59 −40 e 60–64 −50; 65+ −60).
+# O nível do personagem faz as vezes do nível da área. Conferido em 2026-11-07. [VERIFY in game]
+RESIST_PENALTY = ((1, 0), (16, -10), (33, -20), (46, -30), (54, -40), (60, -50), (MAPS_LEVEL, -60))
 APROXIMACOES = [
     "Pontos de passiva = nível − 1 + pontos de missão do último ato cujo nível o personagem já alcançou (tabela que "
     "Modules/Build.lua do PoB monta de Data/QuestRewards.lua; supõe todas as missões de ponto feitas). Pontos de "
@@ -32,9 +37,13 @@ APROXIMACOES = [
     "disso (build carregada) não têm ordem e entram primeiro.",
     "Nós de ascendência entram na ordem em que a sessão os alocou, até os pontos da última ascensão cujo nível o "
     "personagem já alcança (judge.ASCENSIONS, [VERIFY in game]); o início da ascendência é fixo.",
-    "Penalidade de resistência por ato (0, −10, … −50) e −60 a partir do nível de mapas: escala da config do PoB 2 "
-    "aplicada aos atos de QuestRewards.lua [VERIFY in game].",
-    "Gems cujo nível mínimo é maior que o nível da etapa ficam de fora dela (anotado em cada etapa).",
+    "Penalidade de resistência pelo nível (como nível de área): 0 no Ato 1, −10 no Ato 2 (16), −20 no Ato 3 (33), −30 no "
+    "Ato 4 (46), −40 e −50 nos Interlúdios (54 e 60) e −60 a partir do nível de mapas (RESIST_PENALTY: atos do RePoE, "
+    "valores da wiki do PoE 2) [VERIFY in game].",
+    "Gems cujo nível mínimo é maior que o nível da etapa ficam de fora dela (anotado em cada etapa); cada gem mostra o nível "
+    "de personagem que a libera (skill ativa: o nível em que a gema bruta alcança o tier dela). Um bloco de gems "
+    "{nível: grupos} troca a skill só quando a skill principal libera (um bloco pedido antes sobe para esse nível) e cada "
+    "troca vira uma etapa própria (`etapa_na_troca`, padrão sim).",
     "Gear: sem `gear` no pedido, é o da sessão em todas as etapas. Com `gear` {nível: [{slot, text, degrau?}]}, cada "
     "etapa usa os itens definidos até o seu nível (o mais recente por slot); o PoB não impede equipar item de nível "
     "acima do personagem.",
@@ -87,10 +96,8 @@ def passive_points(level: int, acts=ACTS_FALLBACK) -> int:
 
 
 def resistance_penalty(level: int, acts=ACTS_FALLBACK) -> int:
-    """0 no primeiro ato, −10 por ato depois dele (até −50) e −60 a partir do nível de mapas. [VERIFY in game]"""
-    if level >= MAPS_LEVEL:
-        return -60
-    return -min(50, 10 * (act_index(level, acts) - 1))
+    """Penalidade da faixa pelo nível (RESIST_PENALTY). `acts` fica pela assinatura antiga; não é usado."""
+    return [pen for lvl, pen in RESIST_PENALTY if level >= lvl][-1]
 
 
 def stage_config(level: int, acts=ACTS_FALLBACK) -> dict:
@@ -169,12 +176,23 @@ def gem_plan(groups, char_level: int, levels_of=None, tier_of=None) -> list[list
     for group in groups:
         rows = []
         for i, (name, quality) in enumerate(group):
-            lvl = gem_level(char_level, levels_of(name))
+            table = levels_of(name)
+            lvl = gem_level(char_level, table)
             tier = tier_of(name) if i == 0 else None
             rows.append({"name": name, "quality": quality, "level": lvl, "tier": tier,
-                         "liberada": lvl >= 1 and not (tier and lvl < tier)})
+                         "liberada": lvl >= 1 and not (tier and lvl < tier), "libera": unlock_level(table, tier)})
         plan.append(rows)
     return plan
+
+
+def unlock_level(table: dict | None, tier: int | None = None) -> int:
+    """Nível de personagem que libera a gem: o do nível 1 dela, ou, para skill ativa com tier, o do nível de gem
+    igual ao tier (a gema bruta precisa alcançá-lo). Sem tabela, a usual do motor."""
+    need = max(1, int(tier or 1))
+    if table:
+        reqs = [req for lvl, req in table.items() if isinstance(req, int) and int(lvl) >= need]
+        return max(1, min(reqs)) if reqs else 100
+    return next((lv for lv in range(1, 101) if gem_level(lv) >= need), 100)
 
 
 def xml_gems(xml: str) -> list[list[tuple[str, int | None]]]:
@@ -241,9 +259,11 @@ def render_md(name: str, class_name: str, ascendancy: str, stages: list[dict], n
             lines += [f"Motivo: {s['respec']}.", ""]
         lines += ["Gems:", ""]
         for i, group in enumerate(s["gems"], 1):
-            parts = [f"{g['name']} {g['level']}" + (f"/{g['quality']}q" if g.get("quality") else "") if g["liberada"]
-                     else f"~~{g['name']}~~ (" + (f"tier {g['tier']}, gema bruta acima do nível {s['level']}" if g.get("tier")
-                                                 else f"nível mínimo acima de {s['level']}") + ")" for g in group]
+            parts = [f"{g['name']} {g['level']}" + (f"/{g['quality']}q" if g.get("quality") else "")
+                     + (f" (libera no L{g['libera']})" if (g.get("libera") or 1) > 1 else "") if g["liberada"]
+                     else f"~~{g['name']}~~ (" + (f"libera no L{g['libera']}, " if g.get("libera") else "")
+                     + (f"tier {g['tier']}, gema bruta acima do nível {s['level']}" if g.get("tier")
+                        else f"nível mínimo acima de {s['level']}") + ")" for g in group]
             lines.append(f"- grupo {i}: " + ", ".join(parts))
         lines.append("")
         if s.get("nos_removidos"):
@@ -350,6 +370,73 @@ def parse_respecs(raw, known_ids) -> list[dict]:
     return sorted(out, key=lambda r: r["level"])
 
 
+def active_only(xml: str) -> str:
+    """Só o loadout ativo de um XML do PoB: o Spec, o SkillSet, o ItemSet e o ConfigSet ativos, e só os itens que
+    eles usam. Um export com vários loadouts (guia, personagem) senão leva todos para as etapas e para o merge."""
+    root = ET.fromstring(xml)
+    tree, skills, items, config = root.find("Tree"), root.find("Skills"), root.find("Items"), root.find("Config")
+
+    def keep_one(parent, tag, attr, by_index=False):
+        if parent is None:
+            return None
+        sets = parent.findall(tag)
+        if not sets:
+            return None
+        want = str(parent.get(attr) or "1")
+        if by_index:  # activeSpec é a posição do Spec (1-based), não um id
+            chosen = sets[min(max(int(want) - 1, 0), len(sets) - 1)] if want.isdigit() else sets[0]
+        else:
+            chosen = next((x for x in sets if x.get("id") == want), sets[0])
+        for x in sets:
+            if x is not chosen:
+                parent.remove(x)
+        parent.set(attr, "1")
+        if not by_index:
+            chosen.set("id", "1")
+        return chosen
+
+    spec = keep_one(tree, "Spec", "activeSpec", by_index=True)
+    keep_one(skills, "SkillSet", "activeSkillSet")
+    item_set = keep_one(items, "ItemSet", "activeItemSet")
+    keep_one(config, "ConfigSet", "activeConfigSet")
+    if items is not None and (item_set is not None or spec is not None):
+        used = {el.get("itemId") for el in items.iter("Slot") if el.get("itemId")}  # inclui XML sem ItemSet
+        used |= {el.get("itemId") for el in (spec.iter() if spec is not None else []) if el.get("itemId")}
+        for item in items.findall("Item"):
+            if item.get("id") not in used:
+                items.remove(item)
+    return ET.tostring(root, encoding="unicode")
+
+
+def shift_gem_blocks(raw, levels_of=None, tier_of=None) -> tuple[dict | None, list[str]]:
+    """gems {nível: grupos} -> ({nível efetivo: grupos}, avisos); (None, []) quando gems não é um plano por nível.
+
+    Cada bloco vale do seu nível em diante (links por etapa). A troca de skill acontece quando a skill principal
+    do bloco (primeira gem do primeiro grupo) libera, nunca antes: um bloco pedido abaixo disso sobe para o nível
+    de liberação (no PoE 2, o nível em que a gema bruta alcança o tier da skill).
+    """
+    if not (isinstance(raw, dict) and raw and all(str(k).isdigit() for k in raw)):
+        return None, []
+    blocks = {int(k): parse_gems(v) for k, v in raw.items()}
+    shifted, avisos = {}, []
+    for key in sorted(blocks):
+        main = blocks[key][0][0][0]
+        unlock = gem_plan([[(main, None)]], 100, levels_of, tier_of)[0][0]["libera"]
+        at = max(key, unlock)
+        if at != key:
+            avisos.append(f"bloco L{key}: {main} só libera no L{unlock}; a troca foi para o L{unlock}")
+        shifted[at] = blocks[key]
+    return shifted, avisos
+
+
+def swap_notice(gems_by_level: dict, level: int) -> str:
+    """Aviso da etapa em que um bloco de gems entra: troca de skill ou só de links/grupos."""
+    keys = sorted(gems_by_level)
+    main, before = gems_by_level[level][0][0][0], gems_by_level[keys[keys.index(level) - 1]][0][0][0]
+    return (f"troca de skill: {main} entra neste nível (quando libera)" if main != before
+            else f"troca de gems: {main} continua, links e grupos mudam neste nível")
+
+
 def merge_loadouts(stages: list[tuple[str, str]], notes: str = "") -> str:
     """Um XML do PoB com um loadout por etapa: Spec, SkillSet, ItemSet e ConfigSet com o mesmo título.
 
@@ -358,7 +445,7 @@ def merge_loadouts(stages: list[tuple[str, str]], notes: str = "") -> str:
     """
     if not stages:
         raise ValueError("nenhuma etapa para juntar")
-    root = copy.deepcopy(ET.fromstring(stages[-1][1]))
+    root = ET.fromstring(active_only(stages[-1][1]))
     tree, skills, items, config = root.find("Tree"), root.find("Skills"), root.find("Items"), root.find("Config")
     for parent, tags in ((tree, ("Spec",)), (skills, ("SkillSet",)), (items, ("Item", "ItemSet")), (config, ("ConfigSet",))):
         if parent is not None:
@@ -366,7 +453,7 @@ def merge_loadouts(stages: list[tuple[str, str]], notes: str = "") -> str:
                 parent.remove(child)
     offset = 0
     for index, (title, xml) in enumerate(stages, 1):
-        stage = ET.fromstring(xml)
+        stage = ET.fromstring(active_only(xml))
         ids = {}
         stage_items = stage.find("Items")
         if stage_items is not None:
@@ -420,6 +507,11 @@ def loadout_notes(name: str, stages: list[dict]) -> str:
         lines.append(f"{title}: nível {s['level']}, inimigo {s['config']['enemyLevel']}, resist {s['config']['resistancePenalty']}; "
                      f"DPS {st.get('CombinedDPS', '-')}" + (f" (minion {mn.get('TotalDPS')})" if mn.get("TotalDPS") else "")
                      + f", vida {st.get('Life', '-')}, ES {st.get('EnergyShield', '-')}")
+        for i, group in enumerate(s.get("gems") or [], 1):
+            parts = [f"{g['name']} (L{g.get('libera', 1)})" for g in group if g.get("liberada")]
+            if parts and group[0].get("liberada"):  # skill ainda presa: o grupo não entra na etapa
+                lines.append(f"  grupo {i}: " + ", ".join(parts))
+    lines += ["", "(Lx) = nível do personagem em que a gem libera."]
     return "\n".join(lines)
 
 
@@ -437,7 +529,14 @@ def run(session: dict, params: dict, out_dir: Path, compact, pob_code) -> dict:
         raise ValueError("levels deve ter níveis entre 1 e 100")
     acts = load_acts()
     base_xml = lab.export_xml()
-    groups = parse_gems(params["gems"]) if params.get("gems") else xml_gems(base_xml)
+    # gems: grupos (valem em toda etapa) ou {nível: grupos}, cada bloco do seu nível em diante (links por etapa).
+    gems_by_level, swaps = shift_gem_blocks(params.get("gems"))
+    if gems_by_level:
+        if params.get("etapa_na_troca", True):  # cada troca vira uma etapa própria (o jogador vê quando trocar)
+            levels = sorted(set(levels) | {k for k in gems_by_level if k > 1 and levels[0] < k < levels[-1]})
+        groups = gems_by_level[min(gems_by_level)]
+    else:
+        groups = parse_gems(params["gems"]) if params.get("gems") else xml_gems(base_xml)
     ctx = lab.tree_context()
     by_id = {n["id"]: n for n in ctx["nodes"]}
     allocated = [n["id"] for n in ctx["nodes"] if n["allocated"]]
@@ -461,7 +560,9 @@ def run(session: dict, params: dict, out_dir: Path, compact, pob_code) -> dict:
         return [by_id[i]["name"] for i in ids if i in by_id]
 
     def build(level: int, motivo: str | None, previous_nodes: set, antes: dict | None) -> dict:
-        avisos = []
+        avisos = [m for m in swaps if m.endswith(f"o L{level}")]
+        if gems_by_level and level in gems_by_level and level > min(gems_by_level) and not motivo:
+            avisos.append(swap_notice(gems_by_level, level))
         lab.load_xml(base_xml, session["name"])
         lab.set_level(level)
         config = {**stage_config(level, acts), **config_at(config_plan, level)}
@@ -489,7 +590,9 @@ def run(session: dict, params: dict, out_dir: Path, compact, pob_code) -> dict:
                 if "special" not in msg:
                     raise
                 avisos.append(f"grupo {index} concedido por item/nó: mantido nesta etapa")
-        plan = gem_plan(groups, level)
+        stage_groups = (gems_by_level[max((k for k in gems_by_level if k <= level), default=min(gems_by_level))]
+                        if gems_by_level else groups)
+        plan = gem_plan(stage_groups, level)
         new_index = {}
         for gi, rows in enumerate(plan, 1):
             if not rows[0]["liberada"]:
@@ -545,6 +648,7 @@ def run(session: dict, params: dict, out_dir: Path, compact, pob_code) -> dict:
                 base_nodes[:] = [n for n in base_nodes if n not in remove]
                 if r["skills"]:
                     groups = r["skills"]
+                    gems_by_level = None  # o respec troca as skills: o plano por nível deixa de valer
                     selected = dict(r["select"] or {"group": 1, "part": None})
                 elif r["select"]:
                     selected = dict(r["select"])

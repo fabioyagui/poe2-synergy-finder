@@ -208,6 +208,18 @@ def act_open(p: dict) -> dict:
             cls, asc, level = info.get("class_name") or "", info.get("ascendancy") or "", int(info.get("level") or 1)
             if asc in ("None", ""):
                 asc = ""
+        elif source == "xml":
+            # Build de fora (export do PoB, personagem do poe.ninja): {from:'xml', path} ou {from:'xml', xml}.
+            xml = p.get("xml") or Path(str(p.get("path") or "")).read_text(encoding="utf-8")
+            xml = stages.active_only(xml)  # só o loadout ativo: os outros iriam para as etapas e o merge
+            lab.load_xml(xml, name)
+            m = re.search(r'<Build [^>]*className="([^"]+)"[^>]*', xml)
+            build_tag = m.group(0) if m else ""
+            cls = m.group(1) if m else ""
+            asc_m = re.search(r'ascendClassName="([^"]+)"', build_tag)
+            asc = asc_m.group(1) if asc_m and asc_m.group(1) != "None" else ""
+            lvl_m = re.search(r'\blevel="(\d+)"', build_tag)
+            level = int(lvl_m.group(1)) if lvl_m else 1
         elif source == "new":
             cls = str(p.get("class") or "")
             if cls not in CLASSES:
@@ -220,7 +232,7 @@ def act_open(p: dict) -> dict:
             lab.new_build(cls, level, asc or None, weapon=normal(weapon) if weapon else None)
             lab.config(bench.enemy_config(level))
         else:
-            raise ValueError('from deve ser "new" ou "current"')
+            raise ValueError('from deve ser "new", "current" ou "xml"')
     except Exception:
         lab.close()
         raise
@@ -411,7 +423,8 @@ def act_gear_search(p: dict) -> dict:
     xml = s["lab"].export_xml()
     s["selected_key"] = None
     result = gear.search_gear(s["lab"], xml, level, measure, weights, gear.default_slots(weapon_file, weapon_tag, armour_tags),
-                              item_level=p.get("item_level"), prefixes=int(p.get("prefixes") or 3), suffixes=int(p.get("suffixes") or 3))
+                              item_level=p.get("item_level"), prefixes=int(p.get("prefixes") or 3), suffixes=int(p.get("suffixes") or 3),
+                              trilha=p.get("trilha"))
     paths = {}
     EXPORT_DIR.mkdir(exist_ok=True)
     for label, final in result["finais"].items():

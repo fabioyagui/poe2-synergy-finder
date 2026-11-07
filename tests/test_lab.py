@@ -119,3 +119,16 @@ class RealEngineTests(unittest.TestCase):
         parts = bench.skill_parts(self.lab, xml, bench.enemy_config(14))
         self.assertEqual(len(parts), 1)
         self.assertGreater(parts[0]["AverageDamage"], 0)
+
+
+def test_campaign_gear_caps_affixes_and_affixed_pieces():
+    from src.lab import gear
+    a, b, c = ({"id": i, "type": t} for i, t in ((1, "Prefix"), (2, "Suffix"), (3, "Prefix")))
+    gains = [(5.0, b), (3.0, a), (1.0, c)]
+    assert gear.cap_affixes(gains, [a, c], [b], 1) == ([], [b])
+    assert gear.cap_affixes(gains, [a, c], [b], 2) == ([a], [b])
+    assert gear.cap_affixes(gains, [a], [b], 6) == ([a], [b])
+    chosen = {"Helmet": {"prefixos": [a], "sufixos": [], "ganho": 1.0}, "Boots": {"prefixos": [], "sufixos": [b], "ganho": 3.0},
+              "Belt": {"prefixos": [], "sufixos": [], "ganho": 0.0}, "Ring 1": {"prefixos": [c], "sufixos": [], "ganho": 2.0}}
+    assert gear.over_budget(chosen, 2) == ["Helmet"]
+    assert gear.over_budget(chosen, 3) == []

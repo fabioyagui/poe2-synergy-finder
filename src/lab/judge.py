@@ -35,15 +35,36 @@ ASCENSIONS = ((22, 2, "1ª ascensão"), (38, 4, "2ª ascensão"), (60, 6, "3ª a
 
 # Metas mínimas por faixa: (nível a partir do qual vale, resistência elemental mínima, vida + ES mínima).
 # Escolha de método do juiz, não regra do jogo; a penalidade de resistência da faixa já vem da config.
+# Resistência só a partir dos mapas (decisão do autor, 2026-11-05, portada do PoE 1 em 2026-11-07): na campanha
+# (Atos 1–4 e Interlúdios, abaixo de MAPS_LEVEL) ela vem do que cair; o juiz mostra o valor e não reprova.
 METAS = (
     (1, 0, 300),      # Ato 1
     (12, 0, 500),     # Ato 2
-    (28, 10, 900),    # Ato 3
-    (44, 30, 1400),   # Ato 4
-    (51, 45, 1900),   # Interlúdios
+    (28, 0, 900),     # Ato 3
+    (44, 0, 1400),    # Ato 4
+    (51, 0, 1900),    # Interlúdios
     (65, 75, 2800),   # mapas: resistência no teto
     (80, 75, 4000),   # mapas de tier alto
 )
+# Gear da campanha (escolha de método calibrável, 2026-11-07, [VERIFY in game]): drop não é escolhido. Por faixa,
+# quantas peças podem ter afixo útil e quantos afixos cada uma; o resto é base branca. Faixas pelo início de cada ato
+# no world_areas.json do RePoE PoE 2 (as de stages.RESIST_PENALTY): Ato 1 poucas peças mágicas com um afixo; Ato 2
+# metade; Ato 3 todas com um afixo (Orbs of Transmutation/Augmentation já caem); Ato 4 e Interlúdios 1+1.
+# (nível a partir do qual vale, peças com afixo, afixos por peça)
+CAMPAIGN_GEAR = (
+    (1, 3, 1),        # Ato 1
+    (16, 5, 1),       # Ato 2
+    (33, 10, 1),      # Ato 3
+    (46, 10, 2),      # Ato 4 e Interlúdios
+)
+
+
+def campaign_gear(level: int) -> tuple[int, int]:
+    """(peças com afixo, afixos por peça) da faixa de campanha do nível."""
+    row = [r for r in CAMPAIGN_GEAR if level >= r[0]][-1]
+    return row[1], row[2]
+
+
 # Item level máximo obtível: na campanha a área acompanha o personagem (até 2 níveis acima, escolha do
 # juiz); nos mapas, até a área mais alta que dá drop. [VERIFY in game] o 82.
 MAX_ITEM_LEVEL, CAMPAIGN_ILVL_SLACK = 82, 2
@@ -542,7 +563,7 @@ def judge_stage(xml: str, facts: dict, declared: dict | None = None, pool_of=Non
     meta = meta_for(level)
     for e in ELEMENTS:
         v = st.get(e)
-        if isinstance(v, (int, float)) and v < meta["resistencia"]:
+        if meta["resistencia"] and isinstance(v, (int, float)) and v < meta["resistencia"]:  # meta 0 = não cobra
             fails.append(_fail("resistência", f"{e} {v:g}% abaixo da meta {meta['resistencia']}% da faixa L{meta['desde']}+"))
     pool = (st.get("Life") or 0) + (st.get("EnergyShield") or 0)
     if pool < meta["vida_es"]:
@@ -659,6 +680,7 @@ def judge_build(path, lab=None, trilha: str | None = None) -> dict:
             "reprovas": sum(len(e["reprovas"]) for e in etapas) + (anchor["ok"] is False),
             "regras": {"ascensoes": [{"nivel": l, "pontos": p, "nome": n} for l, p, n in ASCENSIONS],
                        "metas": [{"desde": l, "resistencia": r, "vida_es": v} for l, r, v in METAS],
+                       "gear_campanha": [{"desde": l, "pecas": p, "afixos": a} for l, p, a in CAMPAIGN_GEAR],
                        "trilhas": {t: f"até {MAX_SUPPORTS[t]} supports por skill, " + ("uniques, lineage e bases de liga permitidos"
                                                                                         if UNIQUES_ALLOWED[t] else "sem uniques, lineage nem bases de liga (degrau 4)")
                                    for t in TRILHAS},
